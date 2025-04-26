@@ -7,6 +7,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import validate_data, check_is_fitted
 
 from ._base import _ModelResidualsBase, ModelTypes
+from .utils import calculate_residual_spectrum
 
 
 class QResiduals(_ModelResidualsBase):
@@ -21,7 +22,7 @@ class QResiduals(_ModelResidualsBase):
     confidence : float, default=0.95
         Confidence level for statistical calculations (between 0 and 1).
 
-    method : str, default="chi-square"
+    method : str, default="jackson-mudholkar"
         The method used to compute the confidence threshold for Q residuals.
         Options:
         - "chi-square" : Uses mean and standard deviation to approximate Q residuals threshold.
@@ -30,10 +31,10 @@ class QResiduals(_ModelResidualsBase):
 
     Attributes
     ----------
-    model_ : ModelType
+    estimator_ : ModelType
         The fitted model of type _BasePCA or _PLS.
 
-    preprocessing_ : Optional[Pipeline]
+    transformer_ : Optional[Pipeline]
         Preprocessing steps before the model.
 
     n_features_in_ : int
@@ -58,9 +59,11 @@ class QResiduals(_ModelResidualsBase):
         self,
         model: Union[ModelTypes, Pipeline],
         confidence: float = 0.95,
-        method: Literal["chi-square", "jackson-mudholkar", "percentile"] = "percentile",
+        method: Literal[
+            "chi-square", "jackson-mudholkar", "percentile"
+        ] = "jackson-mudholkar",
     ) -> None:
-        self.method = method
+        self.model, self.confidence, self.method = model, confidence, method
         super().__init__(model, confidence)
 
     def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> "QResiduals":
@@ -79,8 +82,8 @@ class QResiduals(_ModelResidualsBase):
         """
         X = validate_data(self, X, ensure_2d=True, dtype=np.float64)
 
-        if self.preprocessing_:
-            X = self.preprocessing_.fit_transform(X)
+        if self.transformer_:
+            X = self.transformer_.fit_transform(X)
 
         # Compute the critical threshold using the chosen method
         self.critical_value_ = self._calculate_critical_value(X)
@@ -138,19 +141,18 @@ class QResiduals(_ModelResidualsBase):
             X = validate_data(self, X, ensure_2d=True, dtype=np.float64)
 
         # Apply preprocessing if available
-        if self.preprocessing_:
-            X = self.preprocessing_.transform(X)
+        if self.transformer_:
+            X = self.transformer_.transform(X)
 
         # Compute reconstruction error (Q residuals)
-        X_transformed = self.model_.transform(X)
-        X_reconstructed = self.model_.inverse_transform(X_transformed)
-        Q_residuals = np.sum((X - X_reconstructed) ** 2, axis=1)
+        residual = calculate_residual_spectrum(X, self.estimator_)
+        Q_residuals = np.sum(residual**2, axis=1)
 
         return Q_residuals
 
     def _calculate_critical_value(
         self,
-        X: Optional[np.ndarray] = None,
+        X: np.ndarray,
     ) -> float:
         """Calculate the critical value for outlier detection.
 
@@ -172,17 +174,18 @@ class QResiduals(_ModelResidualsBase):
 
         """
         # Compute Q residuals for training data
-        X_transformed = self.model_.transform(X)
-        X_reconstructed = self.model_.inverse_transform(X_transformed)
-        residuals = X - X_reconstructed
+        residuals = calculate_residual_spectrum(X, self.estimator_)
 
         if self.method == "chi-square":
             return self._chi_square_threshold(residuals)
+
         elif self.method == "jackson-mudholkar":
             return self._jackson_mudholkar_threshold(residuals)
+
         elif self.method == "percentile":
             Q_residuals = np.sum((residuals) ** 2, axis=1)
             return self._percentile_threshold(Q_residuals)
+
         else:
             raise ValueError(
                 "Invalid method. Choose from 'chi-square', 'jackson-mudholkar', or 'percentile'."
