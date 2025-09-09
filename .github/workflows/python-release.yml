@@ -38,17 +38,10 @@ jobs:
       - name: Install dependencies
         run: task install
 
-      # 2. Set version from tag
-      - name: Set version from tag
-        run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"   # remove the 'refs/tags/v' prefix
-          echo "Updating version to $VERSION"
-          uv version set "$VERSION"
-
-      # 3. Build package
+      # 2. Build package
       - name: Build package
         run: task build
 
-      # 4. Publish to PyPI
+      # 3. Publish to PyPI
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
