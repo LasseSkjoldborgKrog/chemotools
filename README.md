@@ -80,3 +80,9 @@ Check out the [contributing guide](CONTRIBUTING.md) and the [project board](http
 
 Released under the [MIT License](LICENSE).
 
+## Compliance and Software Supply Chain Management
+
+This project embraces software supply chain transparency by generating an SBOM (Software Bill of Materials) for all dependencies. SBOMs help organizations, including those in regulated industries, track open-source components, ensure compliance, and manage security risks. 
+
+The SBOM file is made public as an asset attached to every release. It is generated using [CycloneDX SBOM generator for Python](https://github.com/CycloneDX/cyclonedx-python), and can be vsualized in tools like [CycloneDX Sunshine](https://cyclonedx.github.io/Sunshine/).
+
