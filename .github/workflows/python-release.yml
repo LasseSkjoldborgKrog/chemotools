@@ -45,3 +45,15 @@ jobs:
       # 3. Publish to PyPI
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+      # 4. Create SBOM
+      - name: Create SBOM and attach to the release
+        run: uv run cyclonedx-py 'environment' --output-format=json --output-file=chemotools-${{ github.event.release.tag_name }}-sbom.json
+
+      # 5. Upload SBOM as a release asset
+      - name: Upload SBOM to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: chemotools-${{ github.event.release.tag_name }}-sbom.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
