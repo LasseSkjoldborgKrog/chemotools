@@ -49,7 +49,7 @@ wheels = [
 
 [[package]]
 name = "chemotools"
-version = "0.1.17"
+version = "0.1.17rc0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -60,7 +60,7 @@ dependencies = [
     { name = "scikit-learn" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "cyclonedx-bom" },
     { name = "mypy" },
@@ -74,20 +74,23 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cyclonedx-bom", marker = "extra == 'dev'", specifier = ">=7.1.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0,<2" },
     { name = "numpy", specifier = ">=2.0.0,<3" },
     { name = "pandas", specifier = ">=2.0.0,<3" },
-    { name = "pandas-stubs", marker = "extra == 'dev'", specifier = ">=2.2.3.241126,<3" },
     { name = "polars", specifier = ">=1.17.0,<2" },
     { name = "pyarrow", specifier = ">=18,<21" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.3.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "scikit-learn", specifier = ">=1.4.0,<2" },
-    { name = "scipy-stubs", marker = "extra == 'dev'", specifier = ">=1.15.1.0,<2" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "cyclonedx-bom", specifier = ">=7.1.0" },
+    { name = "mypy", specifier = ">=1.13.0,<2" },
+    { name = "pandas-stubs", specifier = ">=2.2.3.241126,<3" },
+    { name = "pytest", specifier = ">=8.3.0" },
+    { name = "pytest-cov", specifier = ">=6.3.0" },
+    { name = "ruff", specifier = ">=0.10.0" },
+    { name = "scipy-stubs", specifier = ">=1.15.1.0,<2" },
+]
 
 [[package]]
 name = "colorama"

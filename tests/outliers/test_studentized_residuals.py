@@ -15,16 +15,16 @@ def test_studentized_residuals(dummy_data_loader):
     studentized_residuals = stu_residuals.predict_residuals(X, y)
 
     # Assert
-    assert np.isclose(
-        np.mean(studentized_residuals), 0, atol=0.001
-    ), "Mean of studentized residuals should be 0"
-    assert np.isclose(
-        np.std(studentized_residuals), 1, atol=0.001
-    ), "Standard deviation of studentized residuals should be 1"
-    assert np.isclose(
-        studentized_residuals[0], -1.16998195, atol=0.001
-    ), "Studentized residual value mismatch"
-    assert np.isclose(
-        studentized_residuals[-1], 1.17827456, atol=0.001
-    ), "Studentized residual value mismatch"
+    assert np.isclose(np.mean(studentized_residuals), 0, atol=0.001), (
+        "Mean of studentized residuals should be 0"
+    )
+    assert np.isclose(np.std(studentized_residuals), 1, atol=0.001), (
+        "Standard deviation of studentized residuals should be 1"
+    )
+    assert np.isclose(studentized_residuals[0], -1.16998195, atol=0.001), (
+        "Studentized residual value mismatch"
+    )
+    assert np.isclose(studentized_residuals[-1], 1.17827456, atol=0.001), (
+        "Studentized residual value mismatch"
+    )
     assert studentized_residuals.shape == (100,), "Studentized residuals shape mismatch"

@@ -90,32 +90,32 @@ def test_outlier_detection_models(
     prediction_outlier = model.predict_residuals(test_point_outlier)[0]
 
     # Assert model attributes
-    assert (
-        model.confidence == kwargs["confidence"]
-    ), "Confidence value should match input"
-    assert np.isclose(
-        model.critical_value_, expected_critical_value
-    ), f"Critical value mismatch for {model_class.__name__} with {n_components} components"
+    assert model.confidence == kwargs["confidence"], (
+        "Confidence value should match input"
+    )
+    assert np.isclose(model.critical_value_, expected_critical_value), (
+        f"Critical value mismatch for {model_class.__name__} with {n_components} components"
+    )
     assert model.n_features_in_ == 3, "Number of input features should be 3"
-    assert (
-        model.n_components_ == n_components
-    ), f"Number of model components should be {n_components}"
+    assert model.n_components_ == n_components, (
+        f"Number of model components should be {n_components}"
+    )
     assert model.n_samples_ == 100, "Number of samples should be 100"
 
     # Assert predictions
-    assert (
-        prediction_inlier < model.critical_value_
-    ), "Test point should not be an outlier"
-    assert prediction_inlier < np.max(
-        residuals
-    ), "Prediction should be within residual range"
-    assert np.isclose(
-        prediction_inlier, expected_prediction_inlier
-    ), "Prediction value mismatch"
+    assert prediction_inlier < model.critical_value_, (
+        "Test point should not be an outlier"
+    )
+    assert prediction_inlier < np.max(residuals), (
+        "Prediction should be within residual range"
+    )
+    assert np.isclose(prediction_inlier, expected_prediction_inlier), (
+        "Prediction value mismatch"
+    )
     assert prediction_outlier > model.critical_value_, "Test point should be an outlier"
-    assert prediction_outlier > np.max(
-        residuals
-    ), "Prediction should be outside residual range"
-    assert np.isclose(
-        prediction_outlier, expected_prediction_outlier
-    ), "Prediction value mismatch"
+    assert prediction_outlier > np.max(residuals), (
+        "Prediction should be outside residual range"
+    )
+    assert np.isclose(prediction_outlier, expected_prediction_outlier), (
+        "Prediction value mismatch"
+    )
