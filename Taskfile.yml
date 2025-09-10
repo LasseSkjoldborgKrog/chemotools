@@ -75,6 +75,14 @@ tasks:
     cmds:
       - "{{.UV}} build"
 
+  # 🥊 Install hook for pre-commit
+  install-hooks:
+    desc: Install Git hooks using Lefthook
+    cmds:
+      - "{{.UV}} run lefthook install"
+    sources:
+      - lefthook.yml
+
   # 🚦 Meta tasks
   check:
     desc: Run all quality checks (format-check, lint, type-check, test)
@@ -88,4 +96,5 @@ tasks:
     desc: Set up development environment (install + checks)
     cmds:
       - task: install
+      - task: install-hooks
       - task: check
