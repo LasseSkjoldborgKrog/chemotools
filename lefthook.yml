@@ -6,4 +6,9 @@ pre-commit:
     lint:
       run: task lint
 
+commit-msg:
+  commands:
+    commit-msg-check:
+      run: uv run commitlint --file {1}
+
 
