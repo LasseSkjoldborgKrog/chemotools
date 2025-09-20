@@ -12,8 +12,6 @@ from chemotools.outliers import (
 
 
 # Test functionality
-
-
 # Parametrized test
 @pytest.mark.parametrize(
     "model_class, kwargs, n_components, expected_critical_value, expected_prediction_inlier, expected_prediction_outlier",
@@ -23,9 +21,9 @@ from chemotools.outliers import (
             DModX,
             {"confidence": 0.95},
             1,
-            14.124446891825524,
-            0.39112407920976716,
-            3356.9164551405065,
+            1.7576128734793073,
+            0.08797542463276586,
+            755.0702354976111,
         ),
         # QResiduals with different methods & PCA components
         (
@@ -89,6 +87,9 @@ def test_outlier_detection_models(
     prediction_inlier = model.predict_residuals(test_point_inlier)[0]
     prediction_outlier = model.predict_residuals(test_point_outlier)[0]
 
+    inlier_flag = model.predict(test_point_inlier)
+    outlier_flag = model.predict(test_point_outlier)
+
     # Assert model attributes
     assert model.confidence == kwargs["confidence"], (
         "Confidence value should match input"
@@ -119,3 +120,7 @@ def test_outlier_detection_models(
     assert np.isclose(prediction_outlier, expected_prediction_outlier), (
         "Prediction value mismatch"
     )
+
+    # Assert outlier flags
+    assert inlier_flag == 1, "Inlier flag should be 1"
+    assert outlier_flag == -1, "Outlier flag should be -1"
