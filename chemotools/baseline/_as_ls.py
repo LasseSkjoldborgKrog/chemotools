@@ -1,12 +1,13 @@
 """
-The :mod:`chemotools.baseline._air_pls` module implements the Adaptive Iteratively Reweighted
-Penalized Least Squares (AirPLS) baseline correction algorithm
+The :mod:`chemotools.baseline._as_ls` module implements the Asymmetric
+Least Squares (AsLs) baseline correction algorithm
 """
 
 # Authors: Niklas Zell <nik.zoe@web.de>, Pau Cabaneros
 # License: MIT
 
 from typing import Callable, Literal
+
 import numpy as np
 from sklearn.utils._param_validation import Interval, Real, StrOptions
 
@@ -14,29 +15,31 @@ from ._base import _BaselineWhittakerMixin
 from chemotools.smooth._base import _BaseWhittaker
 
 
-class AirPls(_BaselineWhittakerMixin, _BaseWhittaker):
+class AsLs(_BaselineWhittakerMixin, _BaseWhittaker):
     """
-    Adaptive Iteratively Reweighted Penalized Least Squares (AirPls) baseline correction.
+    Asymmetric Least Squares (AsLs) baseline correction.
 
-    AirPls is a widely used algorithm for removing baselines from spectroscopic
-    signals. It iteratively reweights residuals to suppress positive deviations
-    (peaks) while adapting baseline estimates using an exponential weight update.
-    A second-order difference operator (recommended) is used as the penalty term,
-    ensuring the estimated baseline is smooth.
+    This algorithm estimates and removes smooth baselines from spectroscopic data
+    by iteratively reweighting residuals in a penalized least squares framework.
+    A second-order difference operator is used as the penalty term, which promotes
+    a smooth baseline estimate.
 
     The Whittaker smoothing step can be solved using either:
     - a **banded solver** (fast and memory-efficient, recommended for most spectra), or
     - a **sparse LU solver** (more stable for ill-conditioned problems).
 
-    For efficiency, AirPls supports warm-starting: when processing multiple spectra
-    with similar baseline structure, weights from a previous fit can be reused,
-    typically reducing the number of iterations required.
+    For efficiency, the algorithm supports warm-starting: when processing multiple
+    spectra with similar baseline structure, weights from a previous fit can be
+    reused, typically reducing the number of iterations needed.
 
     Parameters
     ----------
     lam : float, default=1e4
         Regularization parameter controlling smoothness of the baseline.
         Larger values yield smoother baselines.
+
+    penalty : float, default=0.01
+        The asymmetry parameter. It is recommended to set between 0.001 and 0.1 [1]
 
     nr_iterations : int, default=100
         Maximum number of reweighting iterations.
@@ -57,26 +60,26 @@ class AirPls(_BaselineWhittakerMixin, _BaseWhittaker):
         Remove baselines from the input spectra.
 
     _calculate_baseline(x, w, max_iter)
-        Internal method: compute the baseline for a single spectrum
-        using the AirPls exponential reweighting scheme.
+        Internal method: compute the baseline for a single spectrum.
 
     Examples
     --------
-    >>> from chemotools.baseline import AirPls
+    >>> from chemotools.baseline import AsLs
     >>> import numpy as np
     >>> X = np.array([[1, 2, 3, 4, 5]])
-    >>> airpls = AirPls()
-    >>> X_corrected = airpls.fit_transform(X)
+    >>> asls = AsLs()
+    >>> X_corrected = asls.fit_transform(X)
 
     References
     ----------
-    [1] Z.-M. Zhang, S. Chen, Y.-Z. Liang.
-        "Baseline correction using adaptive iteratively reweighted penalized
-        least squares." Analyst 135 (5), 1138–1146 (2010).
+    [1] Sung-June Baek, Aaron Park, Young-Jin Ahn, Jaebum Choo.
+        "Baseline correction using asymmetrically reweighted penalized
+        least squares smoothing." Analyst 140 (1), 250–257 (2015).
     """
 
     _parameter_constraints: dict = {
         "lam": [Interval(Real, 0, None, closed="both")],
+        "penalty": [Interval(Real, 0, 1, closed="both")],
         "nr_iterations": [Interval(Real, 1, None, closed="both")],
         "solver_type": StrOptions({"banded", "sparse"}),
         "max_iter_after_warmstart": [Interval(Real, 1, None, closed="both")],
@@ -85,6 +88,7 @@ class AirPls(_BaselineWhittakerMixin, _BaseWhittaker):
     def __init__(
         self,
         lam: float = 1e4,
+        penalty: float = 1e-2,
         nr_iterations: int = 100,
         solver_type: Literal["banded", "sparse"] = "banded",
         max_iter_after_warmstart: int = 20,
@@ -95,10 +99,11 @@ class AirPls(_BaselineWhittakerMixin, _BaseWhittaker):
             nr_iterations=nr_iterations,
             max_iter_after_warmstart=max_iter_after_warmstart,
         )
+        self.penalty = penalty
 
-    def fit(self, X: np.ndarray, y=None) -> "AirPls":
+    def fit(self, X: np.ndarray, y=None) -> "AsLs":
         """
-        Fit AirPls model to spectra.
+        Fit AsLs model to spectra.
 
         Parameters
         ----------
@@ -110,13 +115,13 @@ class AirPls(_BaselineWhittakerMixin, _BaseWhittaker):
 
         Returns
         -------
-        self : AirPls
+        self : AsLs
             Fitted estimator.
         """
         return super().fit(X, y)
 
-    def transform(self, X: np.ndarray, y=None) -> np.ndarray:
-        """Apply AirPls baseline correction.
+    def transform(self, X: np.ndarray, y=None, copy=True) -> np.ndarray:
+        """Apply AsLs baseline correction.
 
         Parameters
         ----------
@@ -140,7 +145,7 @@ class AirPls(_BaselineWhittakerMixin, _BaseWhittaker):
         self, x: np.ndarray, w: np.ndarray, max_iter: int, solver: Callable
     ) -> tuple[np.ndarray, np.ndarray]:
         """
-        Compute AirPls baseline for a single spectrum.
+        Run AsLs iterations on a single spectrum.
 
         Parameters
         ----------
@@ -149,7 +154,7 @@ class AirPls(_BaselineWhittakerMixin, _BaseWhittaker):
         w : ndarray
             Initial weights.
         max_iter : int
-            Maximum iterations.
+            Maximum number of iterations.
 
         Returns
         -------
@@ -158,37 +163,19 @@ class AirPls(_BaselineWhittakerMixin, _BaseWhittaker):
         w : ndarray
             Final weights.
         """
-        x_abs_sum = np.abs(x).sum()
-
-        for i in range(max_iter):
-            # Step 1: Whittaker smoothing
+        for _ in range(max_iter):
+            # Whittaker smoothing
             z = self._solve_whittaker(x, w, solver=solver)
 
-            # Step 2: Residuals
+            # Residuals
             d = x - z
-            if np.all(d == 0):
+
+            # Update weights
+            new_w = np.where(d >= 0, self.penalty, 1 - self.penalty)
+
+            # Convergence check
+            if np.array_equal(new_w, w):
                 break
-
-            # Step 3: Negative residuals only
-            mask = d < 0
-            d_neg = d * mask
-            dssn = -d_neg.sum()
-
-            # Stopping criterion
-            if dssn < 0.001 * x_abs_sum:
-                break
-
-            # Step 4: Update weights
-            new_w = np.zeros_like(w)
-            if dssn > 0:
-                new_w[mask] = np.exp(i * (-d_neg[mask]) / dssn)
-
-                # Boundary handling
-                neg_vals = d[mask]
-                if neg_vals.size > 0:
-                    new_w[0] = np.exp(i * (-neg_vals).max() / dssn)
-                new_w[-1] = new_w[0]
-
             w = new_w
 
         return z, w

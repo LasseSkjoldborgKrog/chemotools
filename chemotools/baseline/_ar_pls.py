@@ -1,149 +1,192 @@
-import logging
+"""
+The :mod:`chemotools.baseline._ar_pls` module implements the Asymmetrically Reweighted
+Penalized Least Squares (ArPLS) baseline correction algorithm
+"""
+
+# Authors: Niklas Zell <nik.zoe@web.de>, Pau Cabaneros
+# License: MIT
+
+from typing import Callable, Literal
 import numpy as np
-import scipy.sparse as sp
-from scipy.sparse import spdiags, csc_matrix
-from scipy.sparse.linalg import splu
+from sklearn.utils._param_validation import Interval, Real, StrOptions
 
-from sklearn.base import BaseEstimator, TransformerMixin, OneToOneFeatureMixin
-from sklearn.utils.validation import check_is_fitted, validate_data
-
-logger = logging.getLogger(__name__)
+from ._base import _BaselineWhittakerMixin
+from chemotools.smooth._base import _BaseWhittaker
 
 
-class ArPls(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+class ArPls(_BaselineWhittakerMixin, _BaseWhittaker):
     """
-    This class implements the Assymmetrically Reweighted Penalized Least Squares (ArPls) is a baseline
-    correction method for spectroscopy data. It uses an iterative process
-    to estimate and remove the baseline from the spectra.
+    Asymmetrically Reweighted Penalized Least Squares (ArPLS) baseline correction.
+
+    This algorithm estimates and removes smooth baselines from spectroscopic data
+    by iteratively reweighting residuals in a penalized least squares framework.
+    A second-order difference operator is used as the penalty term, which promotes
+    a smooth baseline estimate.
+
+    The Whittaker smoothing step can be solved using either:
+    - a **banded solver** (fast and memory-efficient, recommended for most spectra), or
+    - a **sparse LU solver** (more stable for ill-conditioned problems).
+
+    For efficiency, the algorithm supports warm-starting: when processing multiple
+    spectra with similar baseline structure, weights from a previous fit can be
+    reused, typically reducing the number of iterations needed.
 
     Parameters
     ----------
-    lam : float, optional (default=1e4)
-        The penalty parameter for the difference matrix in the objective function.
+    lam : float, default=1e4
+        Regularization parameter controlling smoothness of the baseline.
+        Larger values yield smoother baselines.
 
-    ratio : float, optional (default=0.01)
-        The convergence threshold for the weight updating scheme.
+    ratio : float, default=0.01
+        Convergence threshold for weight updates.
 
-    nr_iterations : int, optional (default=100)
-        The maximum number of iterations for the weight updating scheme.
+    nr_iterations : int, default=100
+        Maximum number of reweighting iterations.
 
+    solver_type : Literal["banded", "sparse"], default="banded"
+        If "banded", use the banded solver for Whittaker smoothing.
+        If "sparse", use a sparse LU decomposition.
+
+    max_iter_after_warmstart : int, default=20
+        Maximum iterations allowed when warm-starting from previous weights.
 
     Methods
     -------
     fit(X, y=None)
-        Fit the estimator to the data.
+        Fit the estimator to the input spectra.
 
     transform(X, y=None)
-        Transform the data by removing the baseline.
+        Remove baselines from the input spectra.
 
-    _calculate_diff(N)
-        Calculate the difference matrix for a given size.
+    _calculate_baseline(x, w, max_iter)
+        Internal method: compute the baseline for a single spectrum.
 
-    _calculate_ar_pls(x)
-        Calculate the baseline for a given spectrum.
+    Examples
+    --------
+    >>> from chemotools.baseline import ArPls
+    >>> import numpy as np
+    >>> X = np.array([[1, 2, 3, 4, 5]])
+    >>> arpls = ArPls()
+    >>> X_corrected = arpls.fit_transform(X)
 
     References
     ----------
-    - Sung-June Baek, Aaron Park, Young-Jin Ahn, Jaebum Choo
-    Baseline correction using asymmetrically reweighted penalized
-    least squares smoothing
+    [1] Sung-June Baek, Aaron Park, Young-Jin Ahn, Jaebum Choo.
+        "Baseline correction using asymmetrically reweighted penalized
+        least squares smoothing." Analyst 140 (1), 250–257 (2015).
     """
+
+    _parameter_constraints: dict = {
+        "lam": [Interval(Real, 0, None, closed="both")],
+        "ratio": [Interval(Real, 0, 1, closed="both")],
+        "nr_iterations": [Interval(Real, 1, None, closed="both")],
+        "solver_type": StrOptions({"banded", "sparse"}),
+        "max_iter_after_warmstart": [Interval(Real, 1, None, closed="both")],
+    }
 
     def __init__(
         self,
         lam: float = 1e4,
-        ratio: float = 0.01,
+        ratio: float = 1e-2,
         nr_iterations: int = 100,
+        solver_type: Literal["banded", "sparse"] = "banded",
+        max_iter_after_warmstart: int = 20,
     ):
-        self.lam = lam
+        _BaseWhittaker.__init__(self, lam=lam, solver_type=solver_type)
+        _BaselineWhittakerMixin.__init__(
+            self,
+            nr_iterations=nr_iterations,
+            max_iter_after_warmstart=max_iter_after_warmstart,
+        )
         self.ratio = ratio
-        self.nr_iterations = nr_iterations
 
     def fit(self, X: np.ndarray, y=None) -> "ArPls":
-        """Fit the estimator to the data.
+        """
+        Fit ArPLS model to spectra.
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
-            The input data.
+        X : np.ndarray of shape (n_samples, n_features)
+            The input spectra to fit the model to.
 
-        y : array-like of shape (n_samples,), optional (default=None)
-            The target values.
+        y : None
+            Ignored.
 
         Returns
         -------
-        self : ArPls
-            Returns the instance itself.
+        self : ArPlS
+            Fitted estimator.
         """
+        return super().fit(X, y)
 
-        # Check that X is a 2D array and has only finite values
-        X = validate_data(
-            self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64
-        )
-
-        return self
-
-    def transform(self, X: np.ndarray, y=None) -> np.ndarray:
-        """Transform the data by removing the baseline.
+    def transform(self, X: np.ndarray, y=None, copy=True) -> np.ndarray:
+        """Apply ArPLS baseline correction.
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
-            The input data.
+        X : np.ndarray of shape (n_samples, n_features)
+            The input spectra to transform.
 
-        y : array-like of shape (n_samples,), optional (default=None)
-            The target values.
+        y : None
+            Ignored.
+
+        copy : bool, default=True
+            If True, a copy of X is made before transforming.
 
         Returns
         -------
-        X_ : array-like of shape (n_samples, n_features)
-            The transformed data with the baseline removed.
+        X_transformed : np.ndarray of shape (n_samples, n_features)
+            The baseline-corrected spectra.
         """
+        return super().transform(X, y)
 
-        # Check that the estimator is fitted
-        check_is_fitted(self, "n_features_in_")
+    def _calculate_baseline(
+        self, x: np.ndarray, w: np.ndarray, max_iter: int, solver: Callable
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Run ArPls iterations on a single spectrum.
 
-        # Check that X is a 2D array and has only finite values
-        X_ = validate_data(
-            self,
-            X,
-            y="no_validation",
-            ensure_2d=True,
-            copy=True,
-            reset=False,
-        )
+        Parameters
+        ----------
+        x : ndarray
+            Input spectrum.
+        w : ndarray
+            Initial weights.
+        max_iter : int
+            Maximum number of iterations.
 
-        # Calculate the ar pls baseline
-        for i, x in enumerate(X_):
-            X_[i] = x - self._calculate_ar_pls(x)
+        Returns
+        -------
+        z : ndarray
+            Estimated baseline.
+        w : ndarray
+            Final weights.
+        """
+        for _ in range(max_iter):
+            # Step 1: Whittaker smoothing
+            z = self._solve_whittaker(x, w, solver=solver)
 
-        return X_.reshape(-1, 1) if X_.ndim == 1 else X_
-
-    def _calculate_diff(self, N):
-        identity_matrix = sp.eye(N, format="csc")
-        D2 = sp.diags([1, -2, 1], [0, 1, 2], shape=(N - 2, N), format="csc")
-        return D2.dot(identity_matrix).T
-
-    def _calculate_ar_pls(self, x):
-        N = len(x)
-        D = self._calculate_diff(N)
-        H = self.lam * D.dot(D.T)
-        w = np.ones(N)
-        iteration = 0
-        while iteration < self.nr_iterations:
-            W = spdiags(w, 0, N, N)
-            C = csc_matrix(W + H)
-            z = splu(C).solve(w * x)
+            # Step 2: Residuals
             d = x - z
             dn = d[d < 0]
-            if len(dn) == 0:
+
+            # Early stopping: no negative residuals
+            if dn.size == 0:
                 break
-            m = np.mean(dn)
-            s = np.std(dn)
+
+            # Early stopping: std is zero
+            m, s = dn.mean(), dn.std()
+            if s == 0:
+                break
+
+            # Step 3: Update weights
             exponent = np.clip(2 * (d - (2 * s - m)) / s, -709, 709)
-            wt = 1.0 / (1.0 + np.exp(exponent))
-            if np.linalg.norm(w - wt) / np.linalg.norm(w) < self.ratio:
+            new_w = 1.0 / (1.0 + np.exp(exponent))
+
+            # Convergence check
+            if np.linalg.norm(w - new_w) / np.linalg.norm(w) < self.ratio:
+                w = new_w
                 break
-            w = wt
-            iteration += 1
-        return z
+            w = new_w
+
+        return z, w

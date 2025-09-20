@@ -32,6 +32,16 @@ class CubicSplineCorrection(TransformerMixin, OneToOneFeatureMixin, BaseEstimato
     transform(X, y=0, copy=True)
         Transform the input data by subtracting the constant baseline value.
 
+    _spline_baseline_correct(x)
+        Internal method: compute the baseline for a single spectrum.
+
+    Examples
+    --------
+    >>> from chemotools.baseline import CubicSplineCorrection
+    >>> import numpy as np
+    >>> X = np.array([[1, 2, 3, 4, 5]])
+    >>> csc = CubicSplineCorrection(indices=[0, 4])
+    >>> X_corrected = csc.fit_transform(X)
     """
 
     def __init__(self, indices: Optional[list] = None) -> None:
@@ -66,7 +76,7 @@ class CubicSplineCorrection(TransformerMixin, OneToOneFeatureMixin, BaseEstimato
 
         return self
 
-    def transform(self, X: np.ndarray, y=None, copy=True):
+    def transform(self, X: np.ndarray, y=None, copy=True) -> np.ndarray:
         """
         Transform the input data by subtracting the baseline.
 
@@ -99,12 +109,6 @@ class CubicSplineCorrection(TransformerMixin, OneToOneFeatureMixin, BaseEstimato
             reset=False,
             dtype=np.float64,
         )
-
-        # Check that the number of features is the same as the fitted data
-        if X_.shape[1] != self.n_features_in_:
-            raise ValueError(
-                f"Expected {self.n_features_in_} features but got {X_.shape[1]}"
-            )
 
         # Calculate spline baseline correction
         for i, x in enumerate(X_):
