@@ -1,3 +1,11 @@
+"""
+The :mod:`chemotools.scatter._standard_normal_variate` module implements the Standard Normal Variate (SNV) transformation.
+"""
+
+# Authors: Pau Cabaneros
+# License: MIT
+
+import warnings
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin, OneToOneFeatureMixin
 from sklearn.utils.validation import check_is_fitted, validate_data
@@ -14,6 +22,29 @@ class StandardNormalVariate(TransformerMixin, OneToOneFeatureMixin, BaseEstimato
 
     transform(X, y=0, copy=True)
         Transform the input data by calculating the standard normal variate.
+
+    _calculate_standard_normal_variate(x)
+        Calculate the standard normal variate for a single spectrum.
+
+    Raises
+    ------
+    UserWarning
+        If the standard deviation of a spectrum is zero (spectrum is flat), a warning is raised
+        indicating that the result will contain NaNs.
+
+    Examples
+    --------
+    >>> from chemotools.scatter import StandardNormalVariate
+    >>> import numpy as np
+    >>> X = np.array([[1, 2, 3, 4, 5]])
+    >>> snv = StandardNormalVariate()
+    >>> X_transformed = snv.fit_transform(X)
+
+    References
+    ----------
+    [1] Åsmund Rinnan, Frans van den Berg, Søren Balling Engelsen,
+        "Review of the most common pre-processing techniques for near-infrared spectra,"
+        TrAC Trends in Analytical Chemistry 28 (10) 1201-1222 (2009).
     """
 
     def fit(self, X: np.ndarray, y=None) -> "StandardNormalVariate":
@@ -70,12 +101,6 @@ class StandardNormalVariate(TransformerMixin, OneToOneFeatureMixin, BaseEstimato
             dtype=np.float64,
         )
 
-        # Check that the number of features is the same as the fitted data
-        if X_.shape[1] != self.n_features_in_:
-            raise ValueError(
-                f"Expected {self.n_features_in_} features but got {X_.shape[1]}"
-            )
-
         # Calculate the standard normal variate
         for i, x in enumerate(X_):
             X_[i] = self._calculate_standard_normal_variate(x)
@@ -83,4 +108,11 @@ class StandardNormalVariate(TransformerMixin, OneToOneFeatureMixin, BaseEstimato
         return X_.reshape(-1, 1) if X_.ndim == 1 else X_
 
     def _calculate_standard_normal_variate(self, x) -> np.ndarray:
-        return (x - x.mean()) / x.std()
+        std = x.std()
+        if std == 0:
+            warnings.warn(
+                "Standard deviation is zero in SNV. This indicates a flat signal and will result in NaNs.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return (x - x.mean()) / std
