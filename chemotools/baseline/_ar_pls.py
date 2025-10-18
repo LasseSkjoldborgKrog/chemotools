@@ -6,7 +6,7 @@ Penalized Least Squares (ArPLS) baseline correction algorithm
 # Authors: Niklas Zell <nik.zoe@web.de>, Pau Cabaneros
 # License: MIT
 
-from typing import Callable, Literal
+from typing import Callable, Literal, Optional
 import numpy as np
 from sklearn.utils._param_validation import Interval, Real, StrOptions
 
@@ -24,8 +24,9 @@ class ArPls(_BaselineWhittakerMixin, _BaseWhittaker):
     a smooth baseline estimate.
 
     The Whittaker smoothing step can be solved using either:
-    - a **banded solver** (fast and memory-efficient, recommended for most spectra), or
-    - a **sparse LU solver** (more stable for ill-conditioned problems).
+
+    - a **banded solver** (fast and memory-efficient, recommended for most spectra)
+    - a **sparse LU solver** (more stable for ill-conditioned problems)
 
     For efficiency, the algorithm supports warm-starting: when processing multiple
     spectra with similar baseline structure, weights from a previous fit can be
@@ -56,11 +57,11 @@ class ArPls(_BaselineWhittakerMixin, _BaseWhittaker):
         The number of features in the input data.
 
     DtD_ : np.ndarray
-        The precomputed banded representation of D^T D for the second-order
-        difference operator.
-        - DtD_ is stored as a banded representation from scipy's solveh_banded if
-            solver_type is "banded".
-        - DtD_ is stored as a scipy.sparse CSC matrix if solver_type is "sparse".
+        The precomputed banded representation of :math:`D^T D` for the
+        second-order difference operator.
+
+        * Stored as a banded representation (``solveh_banded`` format) if ``solver_type='banded'``
+        * Stored as a ``scipy.sparse`` CSC matrix if ``solver_type='sparse'``
 
     self.w_init_ : np.ndarray
         The weights set for warm-starting.
@@ -146,8 +147,63 @@ class ArPls(_BaselineWhittakerMixin, _BaseWhittaker):
         """
         return super().transform(X, y)
 
+    def _fit_core(
+        self,
+        X: np.ndarray,
+        y=None,
+        nr_iterations: int = 1,
+        solver: Optional[Callable] = None,
+    ) -> "ArPls":
+        """Fit core implementation: compute warm-start weights.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            Input spectra.
+        y : None
+            Ignored.
+        nr_iterations : int
+            Not used in this implementation.
+        solver : Optional[Callable]
+            Whittaker solver function.
+
+        Returns
+        -------
+        self : ArPls
+            Fitted instance.
+        """
+        self.w_init_ = self._compute_warmstart_weights(X, solver)
+        return self
+
+    def _transform_core(
+        self,
+        X: np.ndarray,
+        y=None,
+        nr_iterations: int = 1,
+        solver: Optional[Callable] = None,
+    ) -> np.ndarray:
+        """Transform core implementation: apply baseline correction.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            Input spectra to correct.
+        y : None
+            Ignored.
+        nr_iterations : int
+            Not used in this implementation.
+        solver : Callable
+            Whittaker solver function.
+
+        Returns
+        -------
+        X_corrected : np.ndarray of shape (n_samples, n_features)
+            Baseline-corrected spectra.
+        """
+        return self._apply_baseline_correction(X, solver)
+
     def _calculate_baseline(
-        self, x: np.ndarray, w: np.ndarray, max_iter: int, solver: Callable
+        self, x: np.ndarray, w: np.ndarray, max_iter: int, solver: Optional[Callable]
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Run ArPls iterations on a single spectrum.

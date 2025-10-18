@@ -128,8 +128,10 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
-# Notebooks
+# Notebooks (ignore all by default)
 *.ipynb
+# But keep documentation/tutorial notebooks
+!docs/**/*.ipynb
 
 # Pyre type checker
 .pyre/
@@ -139,4 +141,16 @@ dmypy.json
 
 # Task files
 *.task
+
+# Sphinx build output (any _build folder)
+docs/_build/
+**/_build/
+docs/build/*
+
+# Sphinx generated API/autosummary stubs
+_autosummary/
+generated/
+docs/source/api/generated/
+docs/source/generated/
+
 
