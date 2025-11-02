@@ -8,12 +8,10 @@ The :mod:`chemotools.smooth._savitzky_golay_filter` module implements the Savitz
 from typing import Literal
 
 import numpy as np
-from scipy.signal import savgol_filter
-from sklearn.base import BaseEstimator, TransformerMixin, OneToOneFeatureMixin
-from sklearn.utils.validation import check_is_fitted, validate_data
+from ._base import _BaseFIRFilter
 
 
-class SavitzkyGolayFilter(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+class SavitzkyGolayFilter(_BaseFIRFilter):
     """
     A transformer that calculates the Savitzky-Golay filter of the input data.
 
@@ -54,77 +52,31 @@ class SavitzkyGolayFilter(TransformerMixin, OneToOneFeatureMixin, BaseEstimator)
         window_size: int = 3,
         polynomial_order: int = 1,
         mode: Literal["mirror", "constant", "nearest", "wrap", "interp"] = "nearest",
+        axis: int = 1,
     ) -> None:
-        self.window_size = window_size
+        super().__init__(window_size=window_size, mode=mode, axis=axis)
         self.polynomial_order = polynomial_order
-        self.mode = mode
 
-    def fit(self, X: np.ndarray, y=None) -> "SavitzkyGolayFilter":
-        """
-        Fit the transformer to the input data.
+    def _compute_kernel(self) -> np.ndarray:
+        if self.polynomial_order >= self.window_size:
+            raise ValueError("polynomial_order must be < window_size.")
+        # Prefer SciPy’s reference coefficients in convolution form
+        try:
+            from scipy.signal import savgol_coeffs
 
-        Parameters
-        ----------
-        X : np.ndarray of shape (n_samples, n_features)
-            The input data to fit the transformer to.
-
-        y : None
-            Ignored to align with API.
-
-        Returns
-        -------
-        self : SavitzkyGolayFilter
-            The fitted transformer.
-        """
-        # Check that X is a 2D array and has only finite values
-        X = validate_data(
-            self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64
-        )
-        return self
-
-    def transform(self, X: np.ndarray, y=None) -> np.ndarray:
-        """
-        Transform the input data by calculating the Savitzky-Golay filter.
-
-        Parameters
-        ----------
-        X : np.ndarray of shape (n_samples, n_features)
-            The input data to transform.
-
-        y : None
-            Ignored to align with API.
-
-        Returns
-        -------
-        X_transformed : np.ndarray of shape (n_samples, n_features)
-            The transformed data.
-        """
-        # Check that the estimator is fitted
-        check_is_fitted(self, "n_features_in_")
-
-        # Check that X is a 2D array and has only finite values
-        X_ = validate_data(
-            self,
-            X,
-            y="no_validation",
-            ensure_2d=True,
-            copy=True,
-            reset=False,
-            dtype=np.float64,
-        )
-
-        # Calculate the standard normal variate
-        for i, x in enumerate(X_):
-            X_[i] = self._calculate_smoothing(x)
-
-        return X_.reshape(-1, 1) if X_.ndim == 1 else X_
-
-    def _calculate_smoothing(self, x) -> np.ndarray:
-        return savgol_filter(
-            x,
-            self.window_size,
-            self.polynomial_order,
-            deriv=0,
-            axis=0,
-            mode=self.mode,
-        )
+            k = np.asarray(
+                savgol_coeffs(
+                    self.window_size, self.polynomial_order, deriv=0, use="conv"
+                ),
+                dtype=np.float64,
+            )
+        except Exception:
+            # Robust LS fallback (intercept row of (A^T A)^{-1} A^T)
+            m = (self.window_size - 1) // 2
+            i = np.arange(-m, m + 1, dtype=np.float64)
+            A = np.vander(i, N=self.polynomial_order + 1, increasing=True)
+            ATA_inv = np.linalg.pinv(A.T @ A)
+            k = (ATA_inv @ A.T)[0, :]
+            k = 0.5 * (k + k[::-1])
+        k /= k.sum()
+        return k
