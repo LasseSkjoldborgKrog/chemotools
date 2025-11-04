@@ -1,15 +1,14 @@
 """
-The :mod:chemotools.smooth._modified_sinc_smoother module implements the Modified Sinc Filter (SGF) transformation.
+The :mod:chemotools.smooth._modified_sinc_smoother module implements the Modified Sinc Filter (MSF) transformation.
 """
 
 # Authors: Nusret Emirhan Salli <nusret.emirhan.salli@gmail.com>
 # License: MIT
 
 from __future__ import annotations
-from typing import Literal
-from numbers import Integral
+from typing import Literal, Optional
 import numpy as np
-from sklearn.utils._param_validation import Interval, StrOptions, Real
+from sklearn.utils._param_validation import Integral, Interval, StrOptions, Real
 
 from ._base import _BaseFIRFilter
 
@@ -20,11 +19,11 @@ class ModifiedSincFilter(_BaseFIRFilter):
 
     The Modified Sinc smoother is a linear-phase FIR filter: the signal is
     convolved with a fixed, symmetric kernel. The kernel is built from:
-      1) a sinc core with argument ((n + 4) / 2) * pi * x (Eq. 3, p. 187),
-      2) a special Gaussian-like window w(x) whose value and slope vanish at
-         the window ends (Eq. 4, p. 187), and
-      3) small optional correction terms that flatten the passband so low
-         frequencies are almost unattenuated (Eqs. 7–8 and Table 1, pp. 187–188).
+        1) a sinc core with argument ((n + 4) / 2) * pi * x (Eq. 3, p. 187),
+        2) a special Gaussian-like window w(x) whose value and slope vanish at
+            the window ends (Eq. 4, p. 187), and
+        3) small optional correction terms that flatten the passband so low
+            frequencies are almost unattenuated (Eqs. 7–8 and Table 1, pp. 187–188).
 
     Parameters
     ----------
@@ -99,6 +98,46 @@ class ModifiedSincFilter(_BaseFIRFilter):
         self.n = n
         self.alpha = alpha
         self.use_corrections = use_corrections
+
+    def fit(
+        self, X: np.ndarray, y: Optional[np.ndarray] = None
+    ) -> "ModifiedSincFilter":
+        """
+        Fit the Modified Sinc Filter to the data.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            The input data to fit the transformer.
+
+        y : Ignored
+            Not used, present for API consistency by convention.
+
+        Returns
+        -------
+        self : ModifiedSincFilter
+            The fitted transformer.
+        """
+        return super().fit(X, y)
+
+    def transform(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
+        """
+        Transform the input data by applying the Modified Sinc Filter.
+
+        Parameters
+        ----------
+        X : np.ndarray of shape (n_samples, n_features)
+            The input data to transform.
+
+        y : None
+            Ignored to align with API.
+
+        Returns
+        -------
+        X_transformed : np.ndarray of shape (n_samples, n_features)
+            The transformed data.
+        """
+        return super().transform(X, y)
 
     def _compute_kernel(self) -> np.ndarray:
         """
