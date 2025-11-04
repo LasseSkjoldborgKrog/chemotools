@@ -7,7 +7,9 @@ The :mod:chemotools.smooth._modified_sinc_smoother module implements the Modifie
 
 from __future__ import annotations
 from typing import Literal
+from numbers import Integral
 import numpy as np
+from sklearn.utils._param_validation import Interval, StrOptions, Real
 
 from ._base import _BaseFIRFilter
 
@@ -64,12 +66,25 @@ class ModifiedSincFilter(_BaseFIRFilter):
 
     Examples
     --------
+    >>> from chemotools.datasets import load_fermentation_train
     >>> from chemotools.smooth import ModifiedSincFilter
-    >>> import numpy as np
-    >>> X = np.array([[0.0, 1.0, 2.0, 1.0, 0.0]], dtype=float)
-    >>> ms = ModifiedSincFilter(window_size= 9, n=6, alpha=4.0, mode="interp")
-    >>> X_smooth = ms.fit_transform(X)
+    >>> # Load sample data
+    >>> X, _ = load_fermentation_train()
+    >>> # Initialize ModifiedSincFilter
+    >>> msf = ModifiedSincFilter()
+    ModifiedSincFilter()
+    >>> # Fit and transform the data
+    >>> X_smoothed = msf.fit_transform(X)
     """
+
+    _parameter_constraints: dict = {
+        "window_size": [Interval(Integral, 1, None, closed="left")],
+        "n": [Interval(Integral, 2, None, closed="left")],
+        "alpha": [Interval(Real, 0, None, closed="neither")],
+        "use_corrections": ["boolean"],
+        "mode": [StrOptions({"mirror", "constant", "nearest", "wrap", "interp"})],
+        "axis": [Interval(Integral, 0, None, closed="left")],
+    }
 
     def __init__(
         self,

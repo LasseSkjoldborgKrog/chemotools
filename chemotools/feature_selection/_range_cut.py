@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.feature_selection._base import SelectorMixin
 from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn.utils._param_validation import Interval, Integral
 
 
 class RangeCut(SelectorMixin, BaseEstimator):
@@ -56,6 +57,12 @@ class RangeCut(SelectorMixin, BaseEstimator):
     >>> X_cut.shape
     (21, 616)
     """
+
+    _parameter_constraints: dict = {
+        "start": Interval(Integral, 0, None, closed="left"),
+        "end": [Integral],
+        "wavenumbers": ["array-like", None],
+    }
 
     def __init__(
         self,
