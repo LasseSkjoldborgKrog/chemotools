@@ -73,6 +73,18 @@ BUTTON_TRANSLATIONS = {
             "translation": "持久化您的模型",
             "url": "persist.html",
         },
+        "Plotting fundamentals": {
+            "translation": "绘图基础",
+            "url": "plotting_fundamentals.html",
+        },
+        "Inspecting your models": {
+            "translation": "检查您的模型",
+            "url": "inspector_fundamentals.html",
+        },
+        "Sampling with Astartes": {
+            "translation": "使用 Astartes 采样",
+            "url": "astartes.html",
+        },
         # _methods/index page
         "Augmentation": {
             "translation": "数据增强",
@@ -89,6 +101,14 @@ BUTTON_TRANSLATIONS = {
         "Outliers": {
             "translation": "异常值检测",
             "url": "outliers.html",
+        },
+        "Plotting": {
+            "translation": "绘图",
+            "url": "plotting.html",
+        },
+        "Inspector": {
+            "translation": "检查器",
+            "url": "inspector.html",
         },
     },
     "es": {
@@ -144,6 +164,18 @@ BUTTON_TRANSLATIONS = {
             "translation": "Persistiendo tus modelos",
             "url": "persist.html",
         },
+        "Plotting fundamentals": {
+            "translation": "Fundamentos de gráficos",
+            "url": "plotting_fundamentals.html",
+        },
+        "Inspecting your models": {
+            "translation": "Inspeccionando tus modelos",
+            "url": "inspector_fundamentals.html",
+        },
+        "Sampling with Astartes": {
+            "translation": "Muestreo con Astartes",
+            "url": "astartes.html",
+        },
         # methods/index page
         "Augmentation": {
             "translation": "Aumento de datos",
@@ -160,6 +192,14 @@ BUTTON_TRANSLATIONS = {
         "Outliers": {
             "translation": "Valores atípicos",
             "url": "outliers.html",
+        },
+        "Plotting": {
+            "translation": "Gráficos",
+            "url": "plotting.html",
+        },
+        "Inspector": {
+            "translation": "Inspector",
+            "url": "inspector.html",
         },
     },
     "ja": {
@@ -215,6 +255,18 @@ BUTTON_TRANSLATIONS = {
             "translation": "モデルの永続化",
             "url": "persist.html",
         },
+        "Plotting fundamentals": {
+            "translation": "プロットの基礎",
+            "url": "plotting_fundamentals.html",
+        },
+        "Inspecting your models": {
+            "translation": "モデルの検査",
+            "url": "inspector_fundamentals.html",
+        },
+        "Sampling with Astartes": {
+            "translation": "Astartesによるサンプリング",
+            "url": "astartes.html",
+        },
         # methods/index page
         "Augmentation": {
             "translation": "データ拡張",
@@ -231,6 +283,14 @@ BUTTON_TRANSLATIONS = {
         "Outliers": {
             "translation": "外れ値検出",
             "url": "outliers.html",
+        },
+        "Plotting": {
+            "translation": "プロット",
+            "url": "plotting.html",
+        },
+        "Inspector": {
+            "translation": "インスペクター",
+            "url": "inspector.html",
         },
     },
 }

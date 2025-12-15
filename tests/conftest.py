@@ -1,6 +1,7 @@
 import os
 from typing import Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
@@ -12,6 +13,13 @@ from sklearn.preprocessing import StandardScaler
 
 
 from chemotools.outliers._base import _ModelResidualsBase
+
+
+@pytest.fixture(autouse=True)
+def close_figures():
+    """Automatically close all matplotlib figures after each test."""
+    yield
+    plt.close("all")
 
 
 test_directory = os.path.dirname(os.path.abspath(__file__))
@@ -87,6 +95,12 @@ def invalid_pipeline(dummy_data_loader):
 @pytest.fixture
 def invalid_model():
     return SVR()
+
+
+@pytest.fixture
+def fitted_invalid_model(dummy_data_loader):
+    X, y = dummy_data_loader
+    return SVR().fit(X, y)
 
 
 @pytest.fixture
