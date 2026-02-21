@@ -1,7 +1,7 @@
 ---
 name: Documentation improvement
 about: Enhance documentation of of chemotools
-title: "[DOCS]"
+title: 'docs:'
 labels: documentation
 assignees: paucablop
 
