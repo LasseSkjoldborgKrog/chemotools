@@ -6,16 +6,14 @@ The :mod:`chemotools.outliers._q_residuals` module implements the Q Residuals
 # Authors: Pau Cabaneros
 # License: MIT
 
-from typing import Optional, Literal, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
-
-from scipy.stats import norm, chi2
+from scipy.stats import chi2, norm
 from sklearn.pipeline import Pipeline
-from sklearn.utils.validation import validate_data, check_is_fitted
-from sklearn.utils._param_validation import Interval, Real, StrOptions
+from sklearn.utils._param_validation import StrOptions
 
-from ._base import _ModelResidualsBase, ModelTypes
+from ._base import ModelTypes, _ModelResidualsBase
 from ._utils import calculate_residual_spectrum
 
 
@@ -34,9 +32,14 @@ class QResiduals(_ModelResidualsBase):
     method : str, default="jackson-mudholkar"
         The method used to compute the confidence threshold for Q residuals.
         Options:
-        - "chi-square" : Uses mean and standard deviation to approximate Q residuals threshold.
-        - "jackson-mudholkar" : Uses eigenvalue-based analytical approximation.
-        - "percentile" : Uses empirical percentile threshold.
+        - "chi-square" : Uses the first two moments of the residual
+        eigenvalues (mean and variance) to compute a moment-matched
+        chi-square threshold for Q residuals [1, 3].
+        - "jackson-mudholkar" : Uses the first three moments of the
+        residual eigenvalues to calculate an analytical threshold
+        based on Jackson & Mudholkar's approximation [2, 3].
+        - "percentile" : Uses the empirical percentile of the
+        observed Q residuals to set a non-parametric threshold.
 
     Attributes
     ----------
@@ -75,7 +78,16 @@ class QResiduals(_ModelResidualsBase):
 
     References
     ----------
-    [1] Johan A. Westerhuis, Stephen P. Gurden, Age K. Smilde (2001)
+    [1] Box, G. E. P. (1954).
+        Some theorems on quadratic forms applied in the study
+        of analysis of variance problems, I.
+        Effect of inequality of variance in the one-way
+        classification.
+        Annals of Mathematical Statistics, 25(2), 290–302.
+    [2] Jackson, J. E., & Mudholkar, G. S. (1979).
+        Control procedures for residuals associated with principal component analysis.
+        Technometrics, 21(3), 341–349.
+    [3] Johan A. Westerhuis, Stephen P. Gurden, Age K. Smilde (2001)
         Generalized contribution plots in multivariate statistical process
         monitoring  Chemometrics and Intelligent Laboratory Systems 51 95–114 (2000)
 
@@ -96,8 +108,7 @@ class QResiduals(_ModelResidualsBase):
     """
 
     _parameter_constraints: dict = {
-        "model": [Pipeline, ModelTypes],
-        "confidence": [Interval(Real, 0, 1, closed="both")],
+        **_ModelResidualsBase._parameter_constraints,
         "method": [StrOptions({"chi-square", "jackson-mudholkar", "percentile"})],
     }
 
@@ -109,157 +120,74 @@ class QResiduals(_ModelResidualsBase):
             "chi-square", "jackson-mudholkar", "percentile"
         ] = "jackson-mudholkar",
     ) -> None:
-        self.model, self.confidence, self.method = model, confidence, method
         super().__init__(model, confidence)
+        self.method = method
 
-    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> "QResiduals":
-        """
-        Fit the Q Residuals model by computing residuals from the training set.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Training data.
-
-        Returns
-        -------
-        self : object
-            Fitted instance of QResiduals.
-        """
-        X = validate_data(self, X, ensure_2d=True, dtype=np.float64)
-
-        if self.transformer_:
-            X = self.transformer_.fit_transform(X)
-
-        # Compute the critical threshold using the chosen method
-        self.critical_value_ = self._calculate_critical_value(X)
-
-        return self
-
-    def predict(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
-        """Identify outliers in the input data based on Q residuals threshold.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Input data.
-
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Boolean array indicating outliers (-1 for outliers, 1 for normal data).
-        """
-        # Check the estimator has been fitted
-        return super().predict(X, y)
-
-    def predict_residuals(
-        self, X: np.ndarray, y: Optional[np.ndarray] = None, validate: bool = True
-    ) -> np.ndarray:
-        """Calculate Q residuals (Squared Prediction Error - SPE) for input data.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Input data.
-
-        validate : bool, default=True
-            Whether to validate the input data.
-
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Q residuals for each sample.
-        """
-        # Check the estimator has been fitted
-        check_is_fitted(self, ["critical_value_"])
-
-        # Validate the input data
-        if validate:
-            X = validate_data(self, X, ensure_2d=True, dtype=np.float64)
-
-        # Apply preprocessing if available
-        if self.transformer_:
-            X = self.transformer_.transform(X)
-
-        # Compute reconstruction error (Q residuals)
-        residual = calculate_residual_spectrum(X, self.estimator_)
-        Q_residuals = np.sum(residual**2, axis=1)
-
-        return Q_residuals
-
-    def _calculate_critical_value(
-        self,
-        X: np.ndarray,
-    ) -> float:
-        """Calculate the critical value for outlier detection.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Input data.
-
-        X_reconstructed : array-like of shape (n_samples, n_features)
-            Reconstructed input data.
-
-        method : str Literal["chi-square", "jackson-mudholkar", "percentile"]
-            The method used to compute the confidence threshold for Q residuals.
-
-        Returns
-        -------
-        float
-            The calculated critical value for outlier detection.
-
-        """
-        # Compute Q residuals for training data
+    def _fit_residuals(self, X: np.ndarray, y: Optional[np.ndarray]) -> None:
+        """Compute SPE thresholds using proper eigenvalue decomposition."""
         residuals = calculate_residual_spectrum(X, self.estimator_)
 
+        # Calculate Q residuals for the training set: sum of squared errors per row
+        q_values = np.sum(residuals**2, axis=1)
+
+        if self.method == "percentile":
+            self.critical_value_ = np.percentile(q_values, self.confidence * 100)
+            return
+
+        # For statistical methods, we need the eigenvalues of the
+        # residual covariance matrix.
+        # This represents the variance remaining in each 'unused'
+        # dimension
+        theta1, theta2, theta3 = self._calculate_thetas(residuals)
+
         if self.method == "chi-square":
-            return self._chi_square_threshold(residuals)
+            self.critical_value_ = self._chi_square_threshold(theta1, theta2)
 
         elif self.method == "jackson-mudholkar":
-            return self._jackson_mudholkar_threshold(residuals)
-
-        elif self.method == "percentile":
-            Q_residuals = np.sum((residuals) ** 2, axis=1)
-            return self._percentile_threshold(Q_residuals)
-
-        else:
-            raise ValueError(
-                "Invalid method. Choose from 'chi-square', 'jackson-mudholkar', or 'percentile'."
+            self.critical_value_ = self._jackson_mudholkar_threshold(
+                theta1, theta2, theta3
             )
 
-    def _chi_square_threshold(self, residuals: np.ndarray) -> float:
-        """Compute Q residual threshold using Chi-Square Approximation."""
-        eigenvalues = np.linalg.trace(np.cov(residuals.T))
+    def _compute_residuals(self, X: np.ndarray, y: Optional[np.ndarray]) -> np.ndarray:
+        """Calculate Q residuals (SPE) for input data."""
+        residual_matrix = calculate_residual_spectrum(X, self.estimator_)
+        return np.sum(residual_matrix**2, axis=1)
 
-        theta_1 = np.sum(eigenvalues)
-        theta_2 = np.sum(eigenvalues**2)
-        # Degrees of freedom approximation
-        g = theta_2 / theta_1
-        h = (2 * theta_1**2) / theta_2
+    def _calculate_thetas(self, residuals: np.ndarray):
+        """Compute the three moments of the residual eigenvalue distribution."""
+        # Note: We use eigvalsh for symmetric matrices (covariance)
+        cov_matrix = np.cov(residuals.T)
+        lambdas = np.linalg.eigvalsh(cov_matrix)
 
-        # Compute chi-square critical value at given confidence level
-        chi_critical = chi2.ppf(self.confidence, df=h)
+        # Filter noise: only keep positive eigenvalues
+        lambdas = lambdas[lambdas > 1e-12]
 
-        # Compute final Q residual threshold
-        return g * chi_critical
+        theta1 = np.sum(lambdas)
+        theta2 = np.sum(lambdas**2)
+        theta3 = np.sum(lambdas**3)
+        return theta1, theta2, theta3
 
-    def _jackson_mudholkar_threshold(self, residuals: np.ndarray) -> float:
-        """Compute Q residual threshold using Jackson & Mudholkar’s analytical method."""
+    def _chi_square_threshold(self, t1: float, t2: float) -> float:
+        """Box approximation: g * chi2(h)."""
+        g = t2 / t1
+        h = (t1**2) / t2
+        return g * chi2.ppf(self.confidence, df=h)
 
-        eigenvalues = np.linalg.trace(np.cov(residuals.T))
-        theta_1 = np.sum(eigenvalues)
-        theta_2 = np.sum(eigenvalues**2)
-        theta_3 = np.sum(eigenvalues**3)
+    def _jackson_mudholkar_threshold(self, t1: float, t2: float, t3: float) -> float:
+        """Standard Jackson-Mudholkar analytical threshold."""
         z_alpha = norm.ppf(self.confidence)
+        h0 = 1 - (2 * t1 * t3) / (3 * t2**2)
 
-        h0 = 1 - (2 * theta_1 * theta_3) / (3 * theta_2**2)
+        # Corrected Formula: z_alpha is outside the square root
+        # If h0 is very close to 0, the SPE distribution is approximately log-normal
+        if abs(h0) < 1e-6:
+            return t1 * np.exp(z_alpha * np.sqrt(2 * t2) / t1)
 
-        term1 = theta_2 * h0 * (1 - h0) / theta_1**2
-        term2 = np.sqrt(z_alpha * 2 * theta_2 * h0**2) / theta_1
+        term1 = (z_alpha * np.sqrt(2 * t2 * h0**2)) / t1
+        term2 = (t2 * h0 * (h0 - 1)) / (t1**2)
 
-        return theta_1 * (1 - term1 + term2) ** (1 / h0)
+        return t1 * (1 + term1 + term2) ** (1 / h0)
 
     def _percentile_threshold(self, Q_residuals: np.ndarray) -> float:
         """Compute Q residual threshold using the empirical percentile method."""
-        return np.percentile(Q_residuals, self.confidence * 100)
+        return np.percentile(Q_residuals, self.confidence_ * 100)

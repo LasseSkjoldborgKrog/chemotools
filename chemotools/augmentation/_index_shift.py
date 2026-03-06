@@ -9,12 +9,12 @@ transformer to randomly shift spectral data along the index axis.
 from typing import Literal, Optional
 
 import numpy as np
-from scipy.signal import convolve
 from scipy import stats
-from sklearn.base import BaseEstimator, TransformerMixin, OneToOneFeatureMixin
+from scipy.signal import convolve
+from sklearn.base import BaseEstimator, OneToOneFeatureMixin, TransformerMixin
 from sklearn.utils import check_random_state
-from sklearn.utils.validation import check_is_fitted, validate_data
 from sklearn.utils._param_validation import Interval, Real, StrOptions
+from sklearn.utils.validation import check_is_fitted, validate_data
 
 
 class IndexShift(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
@@ -28,7 +28,8 @@ class IndexShift(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
         Maximum number of indices by which the data is randomly shifted.
         The actual shift is a random integer between -shift and shift (inclusive).
 
-    padding_mode : {'zeros', 'constant', 'wrap', 'extend', 'mirror', 'linear'}, default='linear'
+    padding_mode : {'zeros', 'constant', 'wrap', 'extend',
+        'mirror', 'linear'}, default='linear'
         Specifies how to handle padding when shifting the data:
             - 'zeros': Pads with zeros.
             - 'constant': Pads with a constant value defined by `pad_value`.
@@ -149,7 +150,7 @@ class IndexShift(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
 
         return X_.reshape(-1, 1) if X_.ndim == 1 else X_
 
-    def _shift_signal(self, x: np.ndarray):
+    def _shift_signal(self, x: np.ndarray):  # noqa: C901 — awaiting for refactoring
         """
         Shifts a discrete signal using convolution with a Dirac delta kernel.
 
@@ -215,28 +216,32 @@ class IndexShift(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
             return result
 
         elif self.padding_mode == "linear":
-            # Get points for linear regression
+            # Get points for linear regression (need at least 2 points)
             if pad_left:
-                points = x[: pad_length + 1]  # Take first pad_length+1 points
+                n_fit = max(pad_length + 1, 2)
+                points = x[:n_fit]
                 x_coords = np.arange(len(points))
-                slope, intercept, *_ = stats.linregress(x_coords, points)
+                reg = stats.linregress(x_coords, points)
 
                 # Generate new points using linear regression
                 new_x = np.arange(-pad_length, 0)
-                extrapolated = slope * new_x + intercept
+                extrapolated = reg.slope * new_x + reg.intercept
                 result[:pad_length] = extrapolated
             else:
-                points = x[-pad_length - 1 :]  # Take last pad_length+1 points
+                n_fit = max(pad_length + 1, 2)
+                points = x[-n_fit:]
                 x_coords = np.arange(len(points))
-                slope, intercept, *_ = stats.linregress(x_coords, points)
+                reg = stats.linregress(x_coords, points)
 
                 # Generate new points using linear regression
                 new_x = np.arange(len(points), len(points) + pad_length)
-                extrapolated = slope * new_x + intercept
+                extrapolated = reg.slope * new_x + reg.intercept
                 result[-pad_length:] = extrapolated
             return result
 
         else:
             raise ValueError(
-                f"Unknown padding mode: {self.padding_mode}. Please choose from 'zeros', 'constant', 'wrap', 'extend', 'mirror', or 'linear'."
+                f"Unknown padding mode: {self.padding_mode}. "
+                "Please choose from 'zeros', 'constant', "
+                "'wrap', 'extend', 'mirror', or 'linear'."
             )

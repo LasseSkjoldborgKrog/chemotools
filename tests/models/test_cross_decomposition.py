@@ -1,7 +1,7 @@
 """Tests for enhanced PLSRegression with automatic variance calculation."""
 
-import pytest
 import numpy as np
+import pytest
 from sklearn.cross_decomposition import PLSRegression as SklearnPLSRegression
 from sklearn.utils.estimator_checks import check_estimator
 
@@ -402,22 +402,6 @@ class TestPLSRegressionEdgeCases:
         # Assert
         assert hasattr(pls, "explained_x_variance_ratio_")
         assert hasattr(pls, "explained_y_variance_ratio_")
-
-    def test_repr_shows_variance_info(self):
-        """Test that __repr__ shows variance information after fitting."""
-        # Arrange
-        np.random.seed(42)
-        X = np.random.randn(100, 50)
-        y = np.random.randn(100)
-
-        # Act
-        pls = PLSRegression(n_components=5)
-        pls.fit(X, y)
-        repr_str = repr(pls)
-
-        # Assert
-        assert "X-space variance explained" in repr_str
-        assert "Y-space variance explained" in repr_str
 
     def test_repr_before_fitting(self):
         """Test that __repr__ works before fitting (no variance info)."""

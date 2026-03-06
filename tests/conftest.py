@@ -1,26 +1,15 @@
 import os
-from typing import Tuple
+from typing import Optional, Tuple
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.decomposition import PCA
-from sklearn.svm import SVR
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.svm import SVR
 
 from chemotools.outliers._base import _ModelResidualsBase
-
-
-@pytest.fixture(autouse=True)
-def close_figures():
-    """Automatically close all matplotlib figures after each test."""
-    yield
-    plt.close("all")
-
 
 test_directory = os.path.dirname(os.path.abspath(__file__))
 
@@ -33,11 +22,11 @@ class _DummyModelResiduals(_ModelResidualsBase):
     def __init__(self, model, confidence):
         super().__init__(model, confidence)
 
-    def predict_residuals(self):
-        return np.zeros(10)
+    def _fit_residuals(self, X: np.ndarray, y: Optional[np.ndarray]) -> None:
+        self.critical_value_ = 1.96
 
-    def _calculate_critical_value(self):
-        return 1.96
+    def _compute_residuals(self, X: np.ndarray, y: Optional[np.ndarray]) -> np.ndarray:
+        return np.zeros(X.shape[0])
 
 
 @pytest.fixture
@@ -89,7 +78,7 @@ def unfitted_pipeline():
 @pytest.fixture
 def invalid_pipeline(dummy_data_loader):
     X, _ = dummy_data_loader
-    return make_pipeline(StandardScaler(), StandardScaler())
+    return make_pipeline(StandardScaler(), StandardScaler()).fit(X)
 
 
 @pytest.fixture

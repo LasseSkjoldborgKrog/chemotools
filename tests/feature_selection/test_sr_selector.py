@@ -1,10 +1,8 @@
 import numpy as np
 import pytest
-
 from sklearn.exceptions import NotFittedError
 
 from chemotools.feature_selection import SRSelector
-
 
 # Test compliance with scikit-learn
 # TODO: Design test for SRSelector
@@ -33,7 +31,10 @@ def test_sr_selector_with_fitted_pca(fitted_pca, dummy_data_loader):
     Should raise TypeError since PCA is not an accepted model type.
     """
     # Arrange, Act & Assert
-    with pytest.raises(TypeError, match=".*not a valid model.*"):
+    with pytest.raises(
+        TypeError,
+        match=".*Model must be _PLS, or a Pipeline ending with one of these types.*",
+    ):
         SRSelector(model=fitted_pca, threshold=1)
 
 

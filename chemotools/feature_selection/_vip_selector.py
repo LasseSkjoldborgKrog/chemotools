@@ -1,17 +1,18 @@
 """
-The :mod:`chemotools.feature_selection._vip_selector` module implements the Variables Importance in
-Projection (VIP) feature selector for PLS regression models.
+The :mod:`chemotools.feature_selection._vip_selector` module
+implements the Variables Importance in Projection (VIP)
+feature selector for PLS regression models.
 """
 
 # Author: Pau Cababeros
 # License: MIT
 
 import numpy as np
-from sklearn.utils.validation import validate_data
 from sklearn.pipeline import Pipeline
 from sklearn.utils._param_validation import Interval, Real
+from sklearn.utils.validation import validate_data
 
-from ._base import _PLSFeatureSelectorBase, ModelTypes
+from ._base import ModelTypes, _PLSFeatureSelectorBase
 
 
 class VIPSelector(_PLSFeatureSelectorBase):
@@ -143,14 +144,14 @@ class VIPSelector(_PLSFeatureSelectorBase):
             np.linalg.norm(self.estimator_.y_loadings_, ord=2, axis=0) ** 2
         )
         sum_of_squares_x_scores = (
-            np.linalg.norm(self.estimator_.x_scores_, ord=2, axis=0) ** 2
+            np.linalg.norm(self.estimator_.x_scores_, ord=2, axis=0) ** 2  # type: ignore[unresolved-attribute]  # sklearn fitted attribute
         )
 
         # Calculate the sum of squares
         sum_of_squares = sum_of_squares_y_loadings * sum_of_squares_x_scores
 
         # Calculate the numerator
-        numerator = self.estimator_.n_features_in_ * np.sum(
+        numerator = self.estimator_.n_features_in_ * np.sum(  # type: ignore[unresolved-attribute]  # sklearn fitted attribute
             sum_of_squares * self.estimator_.x_weights_**2,
             axis=1,
         )

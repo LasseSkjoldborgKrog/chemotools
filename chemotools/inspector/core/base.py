@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
     Iterable,
@@ -10,11 +12,9 @@ from typing import (
     Sequence,
     Tuple,
     Union,
-    TYPE_CHECKING,
 )
 
 import numpy as np
-from abc import ABC
 from sklearn.cross_decomposition._pls import _PLS
 from sklearn.decomposition._base import _BasePCA
 from sklearn.pipeline import Pipeline
@@ -23,11 +23,14 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 from sklearn.utils import check_array
 
-from .validation import _validate_and_extract_model, _validate_datasets_consistency
+from chemotools._types import ModelInput
+
 from .summaries import InspectorSummary
 from .utils import normalize_datasets
+from .validation import _validate_and_extract_model, _validate_datasets_consistency
 
-ModelTypes = Union[_BasePCA, _PLS, Pipeline]
+# Backward-compatible alias – existing consumers import this name.
+ModelTypes = ModelInput
 
 
 @dataclass(frozen=True)
@@ -83,7 +86,7 @@ class _BaseInspector(ABC):
         X_val: Optional[np.ndarray] = None,
         y_val: Optional[np.ndarray] = None,
         supervised: bool = False,
-        feature_names: Optional[Sequence] = None,
+        feature_names: Optional[np.ndarray] = None,
         sample_labels: Optional[Dict[str, Sequence]] = None,
         confidence: float = 0.95,
     ) -> None:
@@ -232,10 +235,16 @@ class _BaseInspector(ABC):
 
     def _resolve_n_components(self) -> int:
         """Resolve the number of components from the estimator."""
-        if hasattr(self.estimator_, "n_components_"):
-            return int(self.estimator_.n_components_)
-        if hasattr(self.estimator_, "n_components"):
-            return int(self.estimator_.n_components)
+        # Try n_components_ (standard for fitted sklearn models)
+        n_comp = getattr(
+            self.estimator_,
+            "n_components_",
+            getattr(self.estimator_, "n_components", None),
+        )
+
+        if n_comp is not None:
+            return int(n_comp)
+
         raise AttributeError("Cannot determine number of components for estimator")
 
     # -------------------------------------------------------------------------
@@ -370,8 +379,11 @@ class _BaseInspector(ABC):
         tuple
             A tuple containing:
             - datasets (List[str]): The list of dataset names to inspect.
-            - color_by (Optional[Union[str, Dict[str, Any]]]): The normalized color_by configuration.
-            - annotate_by (Optional[Union[str, Dict[str, Any]]]): The normalized annotate_by configuration.
+            - color_by (Optional[Union[str, Dict[str, Any]]]):
+              The normalized color_by configuration.
+            - annotate_by
+              (Optional[Union[str, Dict[str, Any]]]):
+              The normalized annotate_by configuration.
         """
         datasets = normalize_datasets(dataset)
         use_suffix = len(datasets) > 1
@@ -381,7 +393,9 @@ class _BaseInspector(ABC):
             if not isinstance(color_by, (str, dict)):
                 if use_suffix:
                     raise ValueError(
-                        "When inspecting multiple datasets, color_by must be a string or a dictionary."
+                        "When inspecting multiple datasets, "
+                        "color_by must be a string "
+                        "or a dictionary."
                     )
                 color_by = {datasets[0]: color_by}
 
@@ -390,7 +404,9 @@ class _BaseInspector(ABC):
             if not isinstance(annotate_by, (str, dict)):
                 if use_suffix:
                     raise ValueError(
-                        "When inspecting multiple datasets, annotate_by must be a string or a dictionary."
+                        "When inspecting multiple datasets, "
+                        "annotate_by must be a string "
+                        "or a dictionary."
                     )
                 annotate_by = {datasets[0]: annotate_by}
 

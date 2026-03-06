@@ -155,3 +155,10 @@ docs/source/generated/
 
 # uv lock file (regenerated per Python version)
 uv.lock
+
+# Mac OS metadata files
+.DS_Store
+
+# Auto-generated version file (setuptools-scm / hatch-vcs)
+chemotools/_version.py
+

@@ -1,17 +1,19 @@
-from typing import Union, Tuple, Optional
+from typing import Optional, Tuple, Union
 
 import numpy as np
-
-from sklearn.decomposition._base import _BasePCA
 from sklearn.cross_decomposition._pls import _PLS
+from sklearn.decomposition._base import _BasePCA
 from sklearn.pipeline import Pipeline
-from sklearn.utils.validation import check_is_fitted
+
+from chemotools._validation import validate_and_extract_model as _canonical_validate
 
 
 def _validate_and_extract_model(
     model: Union[_BasePCA, _PLS, Pipeline],
 ) -> Tuple[Union[_BasePCA, _PLS], Optional[Pipeline]]:
     """Validate and extract model and transformer.
+
+    Delegates to :func:`chemotools._validation.validate_and_extract_model`.
 
     Parameters
     ----------
@@ -25,34 +27,22 @@ def _validate_and_extract_model(
 
     transformer : Optional[Pipeline]
         The preprocessing pipeline (if model is a Pipeline)
-
-    Raises
-    ------
-    TypeError
-        If model is not a valid type
-    ValueError
-        If model is not fitted
     """
-    check_is_fitted(model)
+    return _canonical_validate(model)
 
-    if isinstance(model, Pipeline):
-        estimator = model[-1]
-        # Create transformer from all but last step
-        if len(model) > 1:
-            transformer = Pipeline(model.steps[:-1])
-        else:
-            transformer = None
-    else:
-        estimator = model
-        transformer = None
 
-    if not isinstance(estimator, (_BasePCA, _PLS)):
-        raise TypeError(
-            f"Model must be _BasePCA, _PLS, or Pipeline ending with one. "
-            f"Got {type(estimator)}"
+def _validate_sample_length(name: str, y: Optional[np.ndarray], expected: int) -> None:
+    """
+    Validate that y has the expected number of samples."""
+    if y is None:
+        return
+    y_arr = np.asarray(y)
+    actual = y_arr.shape[0] if y_arr.ndim > 0 else 1
+    if actual != expected:
+        raise ValueError(
+            f"{name} must have the same number of samples as its X data. "
+            f"Got {actual} vs {expected}."
         )
-
-    return estimator, transformer
 
 
 def _validate_datasets_consistency(
@@ -67,19 +57,6 @@ def _validate_datasets_consistency(
     """Validate that datasets have consistent shapes."""
     n_features = X_train.shape[1]
     n_train = X_train.shape[0]
-
-    def _validate_sample_length(
-        name: str, y: Optional[np.ndarray], expected: int
-    ) -> None:
-        if y is None:
-            return
-        y_arr = np.asarray(y)
-        actual = y_arr.shape[0] if y_arr.ndim > 0 else 1
-        if actual != expected:
-            raise ValueError(
-                f"{name} must have the same number of samples as its X data. "
-                f"Got {actual} vs {expected}."
-            )
 
     if X_test is not None and X_test.shape[1] != n_features:
         raise ValueError("X_test must have same number of features as X_train")

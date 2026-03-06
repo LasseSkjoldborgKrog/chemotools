@@ -1,16 +1,26 @@
 # _base.py
-# Authors: Niklas Zell <nik.zoe@web.de>, Nusret Emirhan Salli <nusret.emirhan.salli@gmail.com>, Pau Cabaneros
+# Authors: Niklas Zell <nik.zoe@web.de>,
+#          Nusret Emirhan Salli <nusret.emirhan.salli@gmail.com>,
+#          Pau Cabaneros
 # License: MIT
 
 from __future__ import annotations
-from abc import ABC, abstractmethod
+
 import logging
-from typing import Callable, Literal, Optional
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Callable, Literal, Optional
 
 import numpy as np
-
-from sklearn.base import BaseEstimator, TransformerMixin, OneToOneFeatureMixin
+from sklearn.base import BaseEstimator, OneToOneFeatureMixin, TransformerMixin
 from sklearn.utils.validation import check_is_fitted, validate_data
+
+from chemotools._deprecation import (
+    DEPRECATED_PARAMETER,
+    resolve_renamed_parameter,
+)
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 from chemotools.utils._linear_algebra import (
     compute_DtD_banded,
@@ -41,7 +51,7 @@ class _BaseWhittaker(TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC)
         self.weights = weights
         self.solver_type = solver_type
 
-    def fit(self, X: np.ndarray, y=None) -> "_BaseWhittaker":
+    def fit(self, X: np.ndarray, y=None) -> Self:
         X = validate_data(self, X, ensure_2d=True, reset=True, dtype=np.float64)
         self.DtD_ = self._precompute_DtD(X.shape[1])
         solver = whittaker_solver_dispatch(self.solver_type)
@@ -60,7 +70,7 @@ class _BaseWhittaker(TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC)
         y=None,
         nr_iterations: int = 1,
         solver: Callable = whittaker_smooth_banded,
-    ) -> "_BaseWhittaker":
+    ) -> Self:
         """Subclasses can extend fitting logic here."""
         ...
 
@@ -105,39 +115,52 @@ class _BaseFIRFilter(TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC)
 
     Parameters
     ----------
-    window_size : int, odd >= 3
+    window_length : int, odd >= 3
         Number of taps in the FIR kernel.
     mode : {"mirror","constant","nearest","wrap","interp"}, default="interp"
-        Boundary handling. "interp" = linear extrapolation (recommended for MS).  # Schmid et al.
+        Boundary handling. "interp" = linear extrapolation
+        (recommended for MS).  # Schmid et al.
     axis : int, default=1
         Axis along which to smooth for 2D inputs (rows × features). Use 1 to
         smooth along feature axis for each row.
+    window_size : int, optional
+        Deprecated alias for ``window_length``.
     """
 
     def __init__(
         self,
-        window_size: int = 21,
+        window_length: int = 21,
         mode: Literal["mirror", "constant", "nearest", "wrap", "interp"] = "interp",
         axis: int = 1,
+        window_size=DEPRECATED_PARAMETER,
     ) -> None:
+        self.window_length = window_length
         self.window_size = window_size
         self.mode = mode
         self.axis = axis
 
     # sklearn API
-    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> "_BaseFIRFilter":
+    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> Self:
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64
         )
 
-        if self.window_size < 3 or self.window_size % 2 == 0:
-            raise ValueError("window_size must be an odd integer >= 3.")
+        self.window_length_ = resolve_renamed_parameter(
+            new_name="window_length",
+            new_value=self.window_length,
+            new_default=21,
+            old_name="window_size",
+            old_value=self.window_size,
+        )
+
+        if self.window_length_ < 3 or self.window_length_ % 2 == 0:
+            raise ValueError("window_length must be an odd integer >= 3.")
         self.kernel_ = self._compute_kernel().astype(np.float64, copy=False)
-        if self.kernel_.ndim != 1 or self.kernel_.size != self.window_size:
-            raise ValueError("kernel must be 1D with length equal to window_size.")
+        if self.kernel_.ndim != 1 or self.kernel_.size != self.window_length_:
+            raise ValueError("kernel must be 1D with length equal to window_length.")
         if not np.allclose(self.kernel_.sum(), 1.0, atol=1e-12):
             raise ValueError("kernel must be DC-preserving (sum == 1).")
-        self._half_ = (self.window_size - 1) // 2
+        self._half_ = (self.window_length_ - 1) // 2
         return self
 
     def transform(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
