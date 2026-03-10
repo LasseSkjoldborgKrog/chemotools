@@ -6,7 +6,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
-    Iterable,
     List,
     Optional,
     Sequence,
@@ -28,9 +27,6 @@ from chemotools._types import ModelInput
 from .summaries import InspectorSummary
 from .utils import normalize_datasets
 from .validation import _validate_and_extract_model, _validate_datasets_consistency
-
-# Backward-compatible alias – existing consumers import this name.
-ModelTypes = ModelInput
 
 
 @dataclass(frozen=True)
@@ -72,107 +68,28 @@ class InspectorPlotConfig:
     regression_figsize: Tuple[float, float] = (8, 6)
 
 
-class _BaseInspector(ABC):
-    """Base class encapsulating shared inspector responsibilities."""
+class _DataHoldingBase:
+    """Lightweight base providing dataset storage, feature-axis management,
+    preprocessed-data caching, and figure lifecycle.
 
+    This class holds the shared "data management" responsibilities that are
+    common to **all** inspectors (including ``PreprocessingInspector``).
+    Estimator/model-specific logic lives in :class:`_BaseInspector`, which
+    extends this class.
+    """
+
+    # -------------------------------------------------------------------------
+    # Initialisation
+    # -------------------------------------------------------------------------
     def __init__(
         self,
         *,
-        model: ModelTypes,
-        X_train: np.ndarray,
-        y_train: Optional[np.ndarray] = None,
-        X_test: Optional[np.ndarray] = None,
-        y_test: Optional[np.ndarray] = None,
-        X_val: Optional[np.ndarray] = None,
-        y_val: Optional[np.ndarray] = None,
-        supervised: bool = False,
+        datasets: Dict[str, InspectorDataset],
+        n_features_in: int,
         feature_names: Optional[np.ndarray] = None,
-        sample_labels: Optional[Dict[str, Sequence]] = None,
-        confidence: float = 0.95,
     ) -> None:
-        if not 0 < confidence < 1:
-            raise ValueError(f"confidence must be between 0 and 1, got {confidence}")
-        self._confidence = confidence
-
-        # Validate and extract model components
-        estimator, transformer = _validate_and_extract_model(model)
-
-        # Validate and normalize input arrays
-        X_train = check_array(
-            X_train,
-            dtype="numeric",
-            ensure_2d=True,
-            ensure_all_finite=True,
-            input_name="X_train",
-        )
-        y_train_arr = self._normalize_target_array(y_train)
-        X_test_arr = (
-            check_array(
-                X_test,
-                dtype="numeric",
-                ensure_2d=True,
-                ensure_all_finite=True,
-                input_name="X_test",
-            )
-            if X_test is not None
-            else None
-        )
-        y_test_arr = self._normalize_target_array(y_test)
-        X_val_arr = (
-            check_array(
-                X_val,
-                dtype="numeric",
-                ensure_2d=True,
-                ensure_all_finite=True,
-                input_name="X_val",
-            )
-            if X_val is not None
-            else None
-        )
-        y_val_arr = self._normalize_target_array(y_val)
-
-        # Validate dataset consistency
-        _validate_datasets_consistency(
-            X_train,
-            y_train_arr,
-            X_test_arr,
-            y_test_arr,
-            X_val_arr,
-            y_val_arr,
-            supervised=supervised,
-        )
-
-        # Store model components
-        self._model: ModelTypes = model
-        self.estimator_: Union[_BasePCA, _PLS] = estimator
-        self.transformer_: Optional[Pipeline] = transformer
-
-        # Build datasets dictionary
-        self.datasets_: Dict[str, InspectorDataset] = {
-            "train": InspectorDataset(
-                X=X_train,
-                y=y_train_arr,
-                labels=self._prepare_labels("train", X_train.shape[0], sample_labels),
-            )
-        }
-
-        if X_test_arr is not None:
-            self.datasets_["test"] = InspectorDataset(
-                X=X_test_arr,
-                y=y_test_arr,
-                labels=self._prepare_labels("test", X_test_arr.shape[0], sample_labels),
-            )
-
-        if X_val_arr is not None:
-            self.datasets_["val"] = InspectorDataset(
-                X=X_val_arr,
-                y=y_val_arr,
-                labels=self._prepare_labels("val", X_val_arr.shape[0], sample_labels),
-            )
-
-        # Store dimensions
-        self.n_features_in_: int = X_train.shape[1]
-        self.n_components_: int = self._resolve_n_components()
+        self.datasets_: Dict[str, InspectorDataset] = datasets
+        self.n_features_in_: int = n_features_in
 
         # Process feature names
         self.feature_names: Optional[np.ndarray] = None
@@ -233,20 +150,6 @@ class _BaseInspector(ABC):
             )
         return labels
 
-    def _resolve_n_components(self) -> int:
-        """Resolve the number of components from the estimator."""
-        # Try n_components_ (standard for fitted sklearn models)
-        n_comp = getattr(
-            self.estimator_,
-            "n_components_",
-            getattr(self.estimator_, "n_components", None),
-        )
-
-        if n_comp is not None:
-            return int(n_comp)
-
-        raise AttributeError("Cannot determine number of components for estimator")
-
     # -------------------------------------------------------------------------
     # Dataset access methods
     # -------------------------------------------------------------------------
@@ -268,18 +171,233 @@ class _BaseInspector(ABC):
                 f"Invalid dataset '{name}'. Available options: {available}."
             ) from exc
 
-    def _iter_datasets(
-        self, names: Iterable[str]
-    ) -> Iterable[Tuple[str, InspectorDataset]]:
-        """Iterate over datasets by name."""
-        for name in names:
-            yield name, self._get_dataset(name)
-
     def _get_raw_data(self, name: str) -> Tuple[np.ndarray, Optional[np.ndarray]]:
         """Get raw X and y for a dataset."""
         dataset = self._get_dataset(name)
         return dataset.X, dataset.y
 
+    # -------------------------------------------------------------------------
+    # Properties
+    # -------------------------------------------------------------------------
+    @property
+    def n_features(self) -> int:
+        """Return the number of features in original data."""
+        return self.n_features_in_
+
+    @property
+    def n_samples(self) -> Dict[str, int]:
+        """Return the number of samples in each dataset."""
+        return {name: dataset.n_samples for name, dataset in self.datasets_.items()}
+
+    @property
+    def x_axis(self) -> np.ndarray:
+        """Return the feature names/indices."""
+        return self._x_axis
+
+    # -------------------------------------------------------------------------
+    # Figure Management
+    # -------------------------------------------------------------------------
+    def close_figures(self) -> None:
+        """Close all figures created by this inspector.
+
+        This method closes all matplotlib figures that were created by previous
+        calls to `inspect()` or `inspect_spectra()`. Use this to free memory
+        when you're done with the plots.
+
+        Examples
+        --------
+        >>> inspector = PCAInspector(model, X_train)
+        >>> figures = inspector.inspect()
+        >>> # ... work with figures ...
+        >>> inspector.close_figures()  # Free memory
+        """
+        import matplotlib.pyplot as plt
+
+        for fig in self._tracked_figures:
+            plt.close(fig)
+        self._tracked_figures.clear()
+
+    def _track_figures(self, figures: Dict[str, "Figure"]) -> Dict[str, "Figure"]:
+        """Track figures for later cleanup and return them.
+
+        Parameters
+        ----------
+        figures : dict
+            Dictionary of figure name to Figure object
+
+        Returns
+        -------
+        dict
+            The same dictionary (for chaining)
+        """
+        self._tracked_figures.extend(figures.values())
+        return figures
+
+
+class _BaseInspector(_DataHoldingBase, ABC):
+    """Base class for estimator-backed inspectors (PCA, PLS).
+
+    Extends :class:`_DataHoldingBase` with estimator/model extraction,
+    component resolution, confidence level, and transformer management.
+    """
+
+    def __init__(
+        self,
+        *,
+        model: ModelInput,
+        X_train: np.ndarray,
+        y_train: Optional[np.ndarray] = None,
+        X_test: Optional[np.ndarray] = None,
+        y_test: Optional[np.ndarray] = None,
+        X_val: Optional[np.ndarray] = None,
+        y_val: Optional[np.ndarray] = None,
+        supervised: bool = False,
+        feature_names: Optional[np.ndarray] = None,
+        sample_labels: Optional[Dict[str, Sequence]] = None,
+        confidence: float = 0.95,
+    ) -> None:
+        if not 0 < confidence < 1:
+            raise ValueError(f"confidence must be between 0 and 1, got {confidence}")
+        self._confidence = confidence
+
+        # Validate and extract model components
+        estimator, transformer = _validate_and_extract_model(model)
+
+        # Store model components
+        self._model: ModelInput = model
+        self.estimator_: Union[_BasePCA, _PLS] = estimator
+        self.transformer_: Optional[Pipeline] = transformer
+
+        # Build and validate datasets
+        X_train_arr, datasets = self._build_datasets(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            y_test=y_test,
+            X_val=X_val,
+            y_val=y_val,
+            supervised=supervised,
+            sample_labels=sample_labels,
+        )
+
+        # Initialise data-holding base
+        super().__init__(
+            datasets=datasets,
+            n_features_in=X_train_arr.shape[1],
+            feature_names=feature_names,
+        )
+
+        # Store dimensions (estimator-specific)
+        self.n_components_: int = self._resolve_n_components()
+
+    @staticmethod
+    def _build_datasets(
+        *,
+        X_train: np.ndarray,
+        y_train: Optional[np.ndarray] = None,
+        X_test: Optional[np.ndarray] = None,
+        y_test: Optional[np.ndarray] = None,
+        X_val: Optional[np.ndarray] = None,
+        y_val: Optional[np.ndarray] = None,
+        supervised: bool = False,
+        sample_labels: Optional[Dict[str, Sequence]] = None,
+    ) -> Tuple[np.ndarray, Dict[str, InspectorDataset]]:
+        """Validate inputs and build the datasets dictionary.
+
+        Returns
+        -------
+        X_train : np.ndarray
+            The validated training feature matrix.
+        datasets : dict of str to InspectorDataset
+            Validated datasets keyed by ``'train'``, ``'test'``, ``'val'``.
+        """
+        normalize = _DataHoldingBase._normalize_target_array
+        prepare = _DataHoldingBase._prepare_labels
+
+        X_train = check_array(
+            X_train,
+            dtype="numeric",
+            ensure_2d=True,
+            ensure_all_finite=True,
+            input_name="X_train",
+        )
+        y_train_arr = normalize(y_train)
+        X_test_arr = (
+            check_array(
+                X_test,
+                dtype="numeric",
+                ensure_2d=True,
+                ensure_all_finite=True,
+                input_name="X_test",
+            )
+            if X_test is not None
+            else None
+        )
+        y_test_arr = normalize(y_test)
+        X_val_arr = (
+            check_array(
+                X_val,
+                dtype="numeric",
+                ensure_2d=True,
+                ensure_all_finite=True,
+                input_name="X_val",
+            )
+            if X_val is not None
+            else None
+        )
+        y_val_arr = normalize(y_val)
+
+        _validate_datasets_consistency(
+            X_train,
+            y_train_arr,
+            X_test_arr,
+            y_test_arr,
+            X_val_arr,
+            y_val_arr,
+            supervised=supervised,
+        )
+
+        datasets: Dict[str, InspectorDataset] = {
+            "train": InspectorDataset(
+                X=X_train,
+                y=y_train_arr,
+                labels=prepare("train", X_train.shape[0], sample_labels),
+            )
+        }
+
+        if X_test_arr is not None:
+            datasets["test"] = InspectorDataset(
+                X=X_test_arr,
+                y=y_test_arr,
+                labels=prepare("test", X_test_arr.shape[0], sample_labels),
+            )
+
+        if X_val_arr is not None:
+            datasets["val"] = InspectorDataset(
+                X=X_val_arr,
+                y=y_val_arr,
+                labels=prepare("val", X_val_arr.shape[0], sample_labels),
+            )
+
+        return X_train, datasets
+
+    def _resolve_n_components(self) -> int:
+        """Resolve the number of components from the estimator."""
+        # Try n_components_ (standard for fitted sklearn models)
+        n_comp = getattr(
+            self.estimator_,
+            "n_components_",
+            getattr(self.estimator_, "n_components", None),
+        )
+
+        if n_comp is not None:
+            return int(n_comp)
+
+        raise AttributeError("Cannot determine number of components for estimator")
+
+    # -------------------------------------------------------------------------
+    # Preprocessed data access (estimator-backed inspectors)
+    # -------------------------------------------------------------------------
     def _get_preprocessed_data(self, name: str) -> np.ndarray:
         """Get preprocessed X for a dataset (cached)."""
         if name in self._preprocessed_cache:
@@ -331,13 +449,6 @@ class _BaseInspector(ABC):
             selector is present, returns the original x_axis.
         """
         return self._get_preprocessed_feature_names()
-
-    def _transform_data(self, X: np.ndarray) -> np.ndarray:
-        """Transform data through the preprocessing pipeline."""
-        X_array = np.asarray(X)
-        if self.transformer_ is None:
-            return X_array
-        return self.transformer_.transform(X_array)
 
     # -------------------------------------------------------------------------
     # Configuration helpers
@@ -420,7 +531,7 @@ class _BaseInspector(ABC):
     # Properties
     # -------------------------------------------------------------------------
     @property
-    def model(self) -> ModelTypes:
+    def model(self) -> ModelInput:
         """Return the original model."""
         return self._model
 
@@ -435,67 +546,9 @@ class _BaseInspector(ABC):
         return self.transformer_
 
     @property
-    def n_features(self) -> int:
-        """Return the number of features in original data."""
-        return self.n_features_in_
-
-    @property
-    def n_samples(self) -> Dict[str, int]:
-        """Return the number of samples in each dataset."""
-        return {name: dataset.X.shape[0] for name, dataset in self.datasets_.items()}
-
-    @property
-    def x_axis(self) -> np.ndarray:
-        """Return the feature names/indices."""
-        return self._x_axis
-
-    @property
     def confidence(self) -> float:
         """Return the confidence level for outlier detection."""
         return self._confidence
-
-    # -------------------------------------------------------------------------
-    # Figure Management
-    # -------------------------------------------------------------------------
-    def close_figures(self) -> None:
-        """Close all figures created by this inspector.
-
-        This method closes all matplotlib figures that were created by previous
-        calls to `inspect()` or `inspect_spectra()`. Use this to free memory
-        when you're done with the plots.
-
-        Examples
-        --------
-        >>> inspector = PCAInspector(model, X_train)
-        >>> figures = inspector.inspect()
-        >>> # ... work with figures ...
-        >>> inspector.close_figures()  # Free memory
-        """
-        import matplotlib.pyplot as plt
-
-        for fig in self._tracked_figures:
-            plt.close(fig)
-        self._tracked_figures.clear()
-
-    def _track_figures(self, figures: Dict[str, "Figure"]) -> Dict[str, "Figure"]:
-        """Track figures for later cleanup and return them.
-
-        Parameters
-        ----------
-        figures : dict
-            Dictionary of figure name to Figure object
-
-        Returns
-        -------
-        dict
-            The same dictionary (for chaining)
-        """
-        self._tracked_figures.extend(figures.values())
-        return figures
-
-    def _cleanup_previous_figures(self) -> None:
-        """Close previously tracked figures to prevent memory leaks."""
-        self.close_figures()
 
     # -------------------------------------------------------------------------
     # Summary helpers
