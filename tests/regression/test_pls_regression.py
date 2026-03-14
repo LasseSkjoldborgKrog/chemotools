@@ -5,7 +5,7 @@ import pytest
 from sklearn.cross_decomposition import PLSRegression as SklearnPLSRegression
 from sklearn.utils.estimator_checks import check_estimator
 
-from chemotools.cross_decomposition import PLSRegression
+from chemotools.regression import PLSRegression
 
 
 # Test compliance with scikit-learn

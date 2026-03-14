@@ -13,14 +13,14 @@ from sklearn.base import BaseEstimator, OneToOneFeatureMixin, TransformerMixin
 from sklearn.utils._param_validation import Interval
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from chemotools._axis_mixin import XAxisMixin
 from chemotools._deprecation import (
     DEPRECATED_PARAMETER,
     deprecated_parameter_constraint,
-    resolve_renamed_parameter,
 )
 
 
-class PointScaler(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+class PointScaler(XAxisMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
     """
     A transformer that scales the input data by the intensity value at a given point.
     The point can be specified by an index or by a wavenumber.
@@ -92,12 +92,15 @@ class PointScaler(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
         self : PointScaler
             The fitted transformer.
         """
+        # Validate the input parameters
+        self._validate_params()
+
         # Check that X is a 2D array and has only finite values
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64
         )
 
-        axis_values = self._resolve_x_axis()
+        axis_values = self._resolve_x_axis(self.x_axis, self.wavenumbers)
 
         # Set the point index
         if axis_values is None:
@@ -143,16 +146,3 @@ class PointScaler(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
             X_[i] = x / x[self.point_index_]
 
         return X_.reshape(-1, 1) if X_.ndim == 1 else X_
-
-    def _find_index(self, target: float, axis_values) -> int:
-        wavenumbers = np.array(axis_values)
-        return int(np.argmin(np.abs(wavenumbers - target)))
-
-    def _resolve_x_axis(self):
-        return resolve_renamed_parameter(
-            new_name="x_axis",
-            new_value=self.x_axis,
-            new_default=None,
-            old_name="wavenumbers",
-            old_value=self.wavenumbers,
-        )

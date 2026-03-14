@@ -5,8 +5,8 @@ import pytest
 from sklearn.exceptions import ConvergenceWarning, NotFittedError
 from sklearn.utils.estimator_checks import check_estimator
 
-import chemotools.cross_decomposition._orthogonal_signal_correction as osc_module
-from chemotools.cross_decomposition import OrthogonalSignalCorrection
+import chemotools.projection._orthogonal_signal_correction as osc_module
+from chemotools.projection import OrthogonalSignalCorrection
 
 
 def _make_osc_dataset(
@@ -48,8 +48,6 @@ def _make_osc_dataset(
 
 
 # Test compliance with scikit-learn
-
-
 def test_compliance_osc():
     """Check sklearn estimator compliance for the OSC transformer."""
     # Arrange

@@ -5,7 +5,7 @@ import pytest
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.estimator_checks import check_estimator
 
-from chemotools.cross_decomposition import ExternalParameterOrthogonalization
+from chemotools.projection import ExternalParameterOrthogonalization
 
 # --- Fixtures ---
 
