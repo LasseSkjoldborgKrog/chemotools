@@ -19,9 +19,12 @@ from chemotools._deprecation import (
     deprecated_parameter_constraint,
     resolve_renamed_parameter,
 )
+from chemotools._doc_mixin import DocLinkMixin
 
 
-class ConstantBaselineCorrection(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+class ConstantBaselineCorrection(
+    DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator
+):
     """
     A transformer that corrects a baseline by subtracting a constant value.
     The constant value is taken by the mean of the features between the start
@@ -99,6 +102,9 @@ class ConstantBaselineCorrection(TransformerMixin, OneToOneFeatureMixin, BaseEst
         self : ConstantBaselineCorrection
             The fitted transformer.
         """
+        # Validate the input parameters
+        self._validate_params()
+
         # Check that X is a 2D array and has only finite values
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64

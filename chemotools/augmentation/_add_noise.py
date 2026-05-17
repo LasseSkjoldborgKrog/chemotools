@@ -14,8 +14,10 @@ from sklearn.utils import check_random_state
 from sklearn.utils._param_validation import Interval, Real, StrOptions
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from chemotools._doc_mixin import DocLinkMixin
 
-class AddNoise(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+
+class AddNoise(DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
     """Add noise to input data from various probability distributions.
 
     This transformer adds random noise from specified probability distributions
@@ -57,7 +59,7 @@ class AddNoise(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
     """
 
     _parameter_constraints: dict = {
-        "distribution": StrOptions({"gaussian", "poisson", "exponential"}),
+        "distribution": [StrOptions({"gaussian", "poisson", "exponential"})],
         "scale": [Interval(Real, 0, None, closed="both")],
         "random_state": [None, int, np.random.RandomState],
     }
@@ -93,6 +95,9 @@ class AddNoise(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
         ValueError
             If X is not a 2D array or contains non-finite values.
         """
+
+        # Validate the input parameters
+        self._validate_params()
 
         # Check that X is a 2D array and has only finite values
         X = validate_data(

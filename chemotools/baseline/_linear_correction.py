@@ -10,8 +10,12 @@ import numpy as np
 from sklearn.base import BaseEstimator, OneToOneFeatureMixin, TransformerMixin
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from chemotools._doc_mixin import DocLinkMixin
 
-class LinearCorrection(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+
+class LinearCorrection(
+    DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator
+):
     """
     A transformer that corrects a baseline by subtracting a linear baseline through the
     initial and final points of the spectrum.
@@ -35,6 +39,8 @@ class LinearCorrection(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
     >>> X_corrected = transformer.transform(X)
     """
 
+    _parameter_constraints: dict = {}
+
     def fit(self, X: np.ndarray, y=None) -> "LinearCorrection":
         """
         Fit the transformer to the input data.
@@ -52,6 +58,9 @@ class LinearCorrection(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
         self : LinearCorrection
             The fitted transformer.
         """
+        # Validate the input parameters
+        self._validate_params()
+
         # Check that X is a 2D array and has only finite values
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64

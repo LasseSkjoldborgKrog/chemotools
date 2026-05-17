@@ -18,8 +18,12 @@ from sklearn.utils import check_random_state
 from sklearn.utils._param_validation import Interval, Real, StrOptions
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from chemotools._doc_mixin import DocLinkMixin
 
-class FractionalShift(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+
+class FractionalShift(
+    DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator
+):
     """
     Shift signals by a random fractional amount using cubic spline interpolation.
 
@@ -102,6 +106,9 @@ class FractionalShift(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
         ValueError
             If X is not a 2D array or contains non-finite values.
         """
+        # Validate the input parameters
+        self._validate_params()
+
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64
         )

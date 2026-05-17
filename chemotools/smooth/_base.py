@@ -22,6 +22,7 @@ from chemotools._deprecation import (
 if TYPE_CHECKING:
     from typing_extensions import Self
 
+from chemotools._doc_mixin import DocLinkMixin
 from chemotools.utils._linear_algebra import (
     compute_DtD_banded,
     compute_DtD_sparse,
@@ -33,7 +34,9 @@ from chemotools.utils._linear_algebra import (
 logger = logging.getLogger(__name__)
 
 
-class _BaseWhittaker(TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC):
+class _BaseWhittaker(
+    DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC
+):
     """Base class for Whittaker-based algorithms (smoothing or baseline correction).
 
     This implements the sklearn boilerplate (validation, fitted checks)
@@ -52,6 +55,7 @@ class _BaseWhittaker(TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC)
         self.solver_type = solver_type
 
     def fit(self, X: np.ndarray, y=None) -> Self:
+        self._validate_params()
         X = validate_data(self, X, ensure_2d=True, reset=True, dtype=np.float64)
         self.DtD_ = self._precompute_DtD(X.shape[1])
         solver = whittaker_solver_dispatch(self.solver_type)
@@ -106,7 +110,9 @@ class _BaseWhittaker(TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC)
             return whittaker_smooth_sparse(x, w, self.lam, DtD)
 
 
-class _BaseFIRFilter(TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC):
+class _BaseFIRFilter(
+    DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC
+):
     """
     Base class for linear-phase FIR smoothers.
 
@@ -141,6 +147,7 @@ class _BaseFIRFilter(TransformerMixin, OneToOneFeatureMixin, BaseEstimator, ABC)
 
     # sklearn API
     def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> Self:
+        self._validate_params()
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64
         )

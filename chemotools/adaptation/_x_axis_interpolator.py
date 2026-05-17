@@ -14,8 +14,10 @@ from sklearn.base import BaseEstimator, TransformerMixin, _fit_context
 from sklearn.utils._param_validation import Interval, StrOptions
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from chemotools._doc_mixin import DocLinkMixin
 
-class XAxisInterpolator(TransformerMixin, BaseEstimator):
+
+class XAxisInterpolator(DocLinkMixin, TransformerMixin, BaseEstimator):
     """Interpolate every row of ``X`` onto a shared ``common_x_axis``.
 
     The transformer resamples each row of ``X`` from a sample-specific (or shared)
@@ -53,7 +55,7 @@ class XAxisInterpolator(TransformerMixin, BaseEstimator):
     n_features_in_ : int
         Number of input features seen during ``fit``.
 
-    feature_names_in_ : ndarray of shape (n_features_in_,)
+    feature_names_in_ : ndarray of shape (``n_features_in_``,)
         Names of features seen during ``fit`` (only if ``X`` had names).
     """
 
@@ -97,6 +99,9 @@ class XAxisInterpolator(TransformerMixin, BaseEstimator):
         -------
         self : object
         """
+        # Validate the input parameters
+        self._validate_params()
+
         # Validate the X data
         validate_data(self, X, ensure_2d=True, dtype="numeric")
 

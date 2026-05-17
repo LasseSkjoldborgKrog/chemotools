@@ -19,9 +19,10 @@ from chemotools._deprecation import (
     DEPRECATED_PARAMETER,
     deprecated_parameter_constraint,
 )
+from chemotools._doc_mixin import DocLinkMixin
 
 
-class IndexSelector(XAxisMixin, SelectorMixin, BaseEstimator):
+class IndexSelector(DocLinkMixin, XAxisMixin, SelectorMixin, BaseEstimator):
     """
     A transformer that Selects the spectral data to a specified array of features. This
     array can be continuous or discontinuous. The array of features is specified by:
@@ -105,6 +106,9 @@ class IndexSelector(XAxisMixin, SelectorMixin, BaseEstimator):
         self : IndexSelector
             The fitted transformer.
         """
+        # Validate the input parameters
+        self._validate_params()
+
         # validate that X is a 2D array and has only finite values
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64

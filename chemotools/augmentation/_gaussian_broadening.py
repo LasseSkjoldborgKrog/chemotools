@@ -16,8 +16,12 @@ from sklearn.utils import check_random_state
 from sklearn.utils._param_validation import Interval, Real, StrOptions
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from chemotools._doc_mixin import DocLinkMixin
 
-class GaussianBroadening(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+
+class GaussianBroadening(
+    DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator
+):
     """
     Transform spectral data by broadening peaks using Gaussian convolution.
 
@@ -60,7 +64,7 @@ class GaussianBroadening(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
 
     _parameter_constraints: dict = {
         "sigma": [Interval(Real, 0, None, closed="both")],
-        "mode": StrOptions({"reflect", "constant", "nearest", "mirror", "wrap"}),
+        "mode": [StrOptions({"reflect", "constant", "nearest", "mirror", "wrap"})],
         "pad_value": [Real],
         "random_state": [None, int, np.random.RandomState],
         "truncate": [Interval(Real, 0, None, closed="both")],
@@ -97,6 +101,9 @@ class GaussianBroadening(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
         self : GaussianBroadening
             The fitted transformer.
         """
+        # Validate the input parameters
+        self._validate_params()
+
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64
         )

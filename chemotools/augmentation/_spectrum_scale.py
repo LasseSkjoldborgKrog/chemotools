@@ -14,8 +14,12 @@ from sklearn.utils import check_random_state
 from sklearn.utils._param_validation import Interval, Real
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from chemotools._doc_mixin import DocLinkMixin
 
-class SpectrumScale(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+
+class SpectrumScale(
+    DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator
+):
     """
     Scales the data by a value drawn from the uniform distribution centered
     around 1.0.
@@ -68,6 +72,9 @@ class SpectrumScale(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
         self : SpectrumScale
             The fitted transformer.
         """
+        # Validate the input parameters
+        self._validate_params()
+
         # Check that X is a 2D array and has only finite values
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64

@@ -15,15 +15,17 @@ from sklearn.cross_decomposition import PLSRegression
 from sklearn.utils._param_validation import Interval
 from sklearn.utils.validation import check_is_fitted, validate_data
 
+from chemotools._doc_mixin import DocLinkMixin
+
 
 class PiecewiseDirectStandardization(
-    OneToOneFeatureMixin, TransformerMixin, BaseEstimator
+    DocLinkMixin, OneToOneFeatureMixin, TransformerMixin, BaseEstimator
 ):
     """
     Piecewise Direct Standardization (PDS) is a transformer used for domain adaptation
     (calibration) applications. The transformer uses least squares to find a linear map
     from the target instrument space to the source instrument space, following the
-    implementation by [1] and [2].
+    implementation by [1]_ and [2]_.
 
     Parameters
     ----------
@@ -66,8 +68,8 @@ class PiecewiseDirectStandardization(
     --------
     DirectStandardization : Global linear transformation without local windows.
 
-    Reference
-    ---------
+    References
+    ----------
     .. [1] Wang, Yongdong., Veltkamp, D. J., & Kowalski, B. R. (1991),
         Multivariate instrument standardization,
         Analytical Chemistry, 63(23), Pages 2750–2756,
@@ -140,6 +142,9 @@ class PiecewiseDirectStandardization(
         -------
         self : PiecewiseDirectStandardization
         """
+
+        # Validate the input parameters
+        self._validate_params()
 
         # Check that X is a 2D array and has only finite values
         X = validate_data(self, X, ensure_2d=True, reset=True, dtype=np.float64)

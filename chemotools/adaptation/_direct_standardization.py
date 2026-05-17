@@ -15,13 +15,17 @@ from sklearn.utils.validation import (
     validate_data,
 )
 
+from chemotools._doc_mixin import DocLinkMixin
 
-class DirectStandardization(OneToOneFeatureMixin, TransformerMixin, BaseEstimator):
+
+class DirectStandardization(
+    DocLinkMixin, OneToOneFeatureMixin, TransformerMixin, BaseEstimator
+):
     """
     Direct Standardization (DS) is a transformer used for domain adaptation (calibration
     ) applications. The transformer uses least squares to find a linear map from
     the target instrument space to the source instrument space, following the
-    implementation by [1].
+    implementation by [1]_.
 
     Attributes
     ----------
@@ -41,8 +45,8 @@ class DirectStandardization(OneToOneFeatureMixin, TransformerMixin, BaseEstimato
     --------
     PiecewiseDirectStandardization : Localized version using windowed PLS regression.
 
-    Reference
-    ---------
+    References
+    ----------
     .. [1] Wang, Yongdong., Veltkamp, D. J., & Kowalski, B. R. (1991),
         Multivariate instrument standardization,
         Analytical Chemistry, 63(23), Pages 2750–2756,
@@ -68,6 +72,8 @@ class DirectStandardization(OneToOneFeatureMixin, TransformerMixin, BaseEstimato
     T_: np.ndarray
     x_source_provided_: bool
 
+    _parameter_constraints: dict = {}
+
     def fit(
         self, X: np.ndarray, y=None, *, X_source: np.ndarray | None = None
     ) -> "DirectStandardization":
@@ -90,6 +96,8 @@ class DirectStandardization(OneToOneFeatureMixin, TransformerMixin, BaseEstimato
         -------
         self : DirectStandardization
         """
+        # Validate the input parameters
+        self._validate_params()
         # Check that X is a 2D array and has only finite values
         X = validate_data(self, X, ensure_2d=True, reset=True, dtype=np.float64)
 
@@ -124,7 +132,7 @@ class DirectStandardization(OneToOneFeatureMixin, TransformerMixin, BaseEstimato
     def transform(self, X) -> np.ndarray:
         """
         Transform the data from the target space to the source space using the map
-        self.T_.
+        ``self.T_``.
 
         Parameters
         ----------

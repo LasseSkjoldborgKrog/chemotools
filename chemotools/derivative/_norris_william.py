@@ -20,9 +20,12 @@ from chemotools._deprecation import (
     deprecated_parameter_constraint,
     resolve_renamed_parameter,
 )
+from chemotools._doc_mixin import DocLinkMixin
 
 
-class NorrisWilliams(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
+class NorrisWilliams(
+    DocLinkMixin, TransformerMixin, OneToOneFeatureMixin, BaseEstimator
+):
     """
     A transformer that calculates the Norris-Williams derivative of the input data.
 
@@ -122,6 +125,9 @@ class NorrisWilliams(TransformerMixin, OneToOneFeatureMixin, BaseEstimator):
         self : NorrisWilliams
             The fitted transformer.
         """
+        # Validate the input parameters
+        self._validate_params()
+
         # Check that X is a 2D array and has only finite values
         X = validate_data(
             self, X, y="no_validation", ensure_2d=True, reset=True, dtype=np.float64
